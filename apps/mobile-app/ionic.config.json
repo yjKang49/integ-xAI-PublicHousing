@@ -1,0 +1,7 @@
+{
+  "name": "AX 안전관리",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "defects-by-org-created",
+    "fields": ["docType", "orgId", "createdAt"],
+    "ddoc": "idx-defects-org-created"
+  },
+  {
+    "name": "defects-by-session",
+    "fields": ["docType", "sessionId", "severity"],
+    "ddoc": "idx-defects-session"
+  },
+  {
+    "name": "defects-by-complex",
+    "fields": ["docType", "orgId", "complexId", "isRepaired"],
+    "ddoc": "idx-defects-complex"
+  },
+  {
+    "name": "defects-by-building",
+    "fields": ["docType", "orgId", "buildingId", "createdAt"],
+    "ddoc": "idx-defects-building"
+  },
+  {
+    "name": "defects-by-severity",
+    "fields": ["docType", "orgId", "severity", "isRepaired"],
+    "ddoc": "idx-defects-severity"
+  },
+  {
+    "name": "defects-by-type",
+    "fields": ["docType", "orgId", "defectType", "createdAt"],
+    "ddoc": "idx-defects-type"
+  },
+  {
+    "name": "defects-unrepaired",
+    "fields": ["docType", "orgId", "isRepaired", "severity"],
+    "ddoc": "idx-defects-unrepaired"
+  }
+]

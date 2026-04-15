@@ -1,0 +1,22 @@
+[
+  {
+    "name": "markers-by-building",
+    "fields": ["docType", "orgId", "buildingId", "isVisible"],
+    "ddoc": "idx-markers-building"
+  },
+  {
+    "name": "markers-by-defect",
+    "fields": ["docType", "orgId", "defectId"],
+    "ddoc": "idx-markers-defect"
+  },
+  {
+    "name": "markers-by-complex",
+    "fields": ["docType", "orgId", "complexId", "isVisible"],
+    "ddoc": "idx-markers-complex"
+  },
+  {
+    "name": "markers-by-model",
+    "fields": ["docType", "orgId", "modelUrl", "isVisible"],
+    "ddoc": "idx-markers-model"
+  }
+]

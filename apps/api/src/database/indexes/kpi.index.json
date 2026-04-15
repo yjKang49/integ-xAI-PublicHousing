@@ -1,0 +1,17 @@
+[
+  {
+    "name": "kpi-by-org-period",
+    "fields": ["docType", "orgId", "periodStart"],
+    "ddoc": "idx-kpi-org-period"
+  },
+  {
+    "name": "kpi-by-complex-period",
+    "fields": ["docType", "orgId", "complexId", "periodStart"],
+    "ddoc": "idx-kpi-complex-period"
+  },
+  {
+    "name": "kpi-by-period-range",
+    "fields": ["docType", "orgId", "periodStart", "periodEnd"],
+    "ddoc": "idx-kpi-period-range"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "index": { "fields": ["docType", "orgId", "status", "createdAt"] },
+    "name": "complaint-triage-by-status",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complaintId"] },
+    "name": "complaint-triage-by-complaint",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complexId", "decisionStatus", "createdAt"] },
+    "name": "complaint-triage-queue",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complexId", "urgencyScore"] },
+    "name": "complaint-triage-by-urgency",
+    "type": "json"
+  }
+]

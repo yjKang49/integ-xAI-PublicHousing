@@ -1,0 +1,32 @@
+[
+  {
+    "name": "jobs-by-org-status-created",
+    "fields": ["docType", "orgId", "status", "createdAt"],
+    "ddoc": "idx-job-status-created"
+  },
+  {
+    "name": "jobs-by-org-type-created",
+    "fields": ["docType", "orgId", "type", "createdAt"],
+    "ddoc": "idx-job-type-created"
+  },
+  {
+    "name": "jobs-by-org-complex",
+    "fields": ["docType", "orgId", "complexId", "createdAt"],
+    "ddoc": "idx-job-complex-created"
+  },
+  {
+    "name": "jobs-by-org-creator",
+    "fields": ["docType", "orgId", "createdBy", "createdAt"],
+    "ddoc": "idx-job-creator-created"
+  },
+  {
+    "name": "jobs-by-queue",
+    "fields": ["docType", "orgId", "queueName", "status"],
+    "ddoc": "idx-job-queue-status"
+  },
+  {
+    "name": "jobs-by-priority",
+    "fields": ["docType", "orgId", "priority", "createdAt"],
+    "ddoc": "idx-job-priority-created"
+  }
+]

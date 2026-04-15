@@ -1,0 +1,212 @@
+# ============================================================
+# AX 공공임대주택 플랫폼 — Render.com Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# 서비스 구성:
+#   web       api         NestJS REST API (port 3000)
+#   web       admin-web   Angular 18 + Nginx (port 80)
+#   worker    ai-worker   Bull consumer — AI 이미지/드론 분석 (Phase 2)
+#   worker    job-worker  Bull consumer — 보고서·RPA·일정 (Phase 2)
+#   pserv     couchdb     CouchDB 3.3 (primary DB)
+#   pserv     minio       MinIO — S3 호환 오브젝트 스토리지
+#   redis     ax-redis    Render Managed Redis 7
+#
+# 배포 전 체크리스트:
+#   1. sync: false 환경변수를 Render 대시보드에서 직접 입력
+#   2. CORS_ORIGINS 에 admin-web 실제 배포 URL 입력
+#   3. apps/admin-web/nginx.conf 의 proxy_pass 가 http://api:3000 인지 확인
+#      (서비스 이름 'api' 와 일치)
+#   4. REDIS_URL 은 Render Managed Redis connectionString 사용
+#      — app.module.ts 의 Redis URL 파싱 로직이 인증 포함 URL
+#        (redis://user:pass@host:port) 을 처리하도록 사전 확인 필요
+# ============================================================
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # NestJS API
+  # ──────────────────────────────────────────────────────────
+  - type: web
+    name: api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+
+      # JWT — 자동 생성 (배포 후 변경 가능)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+
+      # CouchDB — 내부 프라이빗 서비스 hostname
+      - key: COUCHDB_URL
+        value: http://couchdb:5984
+      - key: COUCHDB_USER
+        sync: false   # 대시보드에서 직접 입력
+      - key: COUCHDB_PASSWORD
+        sync: false   # 대시보드에서 직접 입력
+
+      # Redis — Managed Redis connection string
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ax-redis
+          property: connectionString
+      # REDIS_PASSWORD: Render Redis 는 URL 에 인증 정보 포함
+      # app.module.ts 에서 connectionString 전체를 사용하도록 확인 필요
+      - key: REDIS_PASSWORD
+        sync: false   # connectionString 내 패스워드와 동일값 입력
+
+      # MinIO — 내부 프라이빗 서비스 hostname
+      - key: S3_ENDPOINT
+        value: http://minio:9000
+      - key: S3_REGION
+        value: ap-northeast-2
+      - key: S3_BUCKET
+        value: ax-media
+      - key: AWS_ACCESS_KEY_ID
+        sync: false   # MinIO root user (MINIO_ROOT_USER 와 동일)
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false   # MinIO root password (MINIO_ROOT_PASSWORD 와 동일)
+
+      # CORS — 배포 후 실제 admin-web URL 입력
+      # 예: https://admin-web.onrender.com,https://your-domain.com
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Worker 인증 토큰 — 자동 생성
+      - key: WORKER_SECRET
+        generateValue: true
+
+  # ──────────────────────────────────────────────────────────
+  # Angular Admin Web (Nginx)
+  # nginx.conf: proxy_pass http://api:3000 (서비스명 'api' 사용)
+  # ──────────────────────────────────────────────────────────
+  - type: web
+    name: admin-web
+    runtime: docker
+    dockerfilePath: ./apps/admin-web/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+
+  # ──────────────────────────────────────────────────────────
+  # AI Worker — Phase 2 (AI 이미지·드론 영상 분석)
+  # ──────────────────────────────────────────────────────────
+  - type: worker
+    name: ai-worker
+    runtime: docker
+    dockerfilePath: ./apps/ai-worker/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_URL
+        value: http://api:3000
+      - key: WORKER_SECRET
+        fromService:
+          type: web
+          name: api
+          envVarKey: WORKER_SECRET
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ax-redis
+          property: connectionString
+      - key: REDIS_PASSWORD
+        sync: false
+
+  # ──────────────────────────────────────────────────────────
+  # Job Worker — Phase 2 (보고서 생성·RPA 자동화·일정)
+  # ──────────────────────────────────────────────────────────
+  - type: worker
+    name: job-worker
+    runtime: docker
+    dockerfilePath: ./apps/job-worker/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_URL
+        value: http://api:3000
+      - key: WORKER_SECRET
+        fromService:
+          type: web
+          name: api
+          envVarKey: WORKER_SECRET
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ax-redis
+          property: connectionString
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: RPA_DRY_RUN
+        value: "true"
+
+  # ──────────────────────────────────────────────────────────
+  # CouchDB 3.3 — Primary Database (Private Service)
+  # 내부 접근: http://couchdb:5984
+  # ──────────────────────────────────────────────────────────
+  - type: pserv
+    name: couchdb
+    image:
+      url: docker.io/library/couchdb:3.3
+    plan: starter
+    region: singapore
+    disk:
+      name: couchdb-data
+      mountPath: /opt/couchdb/data
+      sizeGB: 10
+    envVars:
+      - key: COUCHDB_USER
+        sync: false   # api 의 COUCHDB_USER 와 동일값
+      - key: COUCHDB_PASSWORD
+        sync: false   # api 의 COUCHDB_PASSWORD 와 동일값
+
+  # ──────────────────────────────────────────────────────────
+  # MinIO — S3 호환 오브젝트 스토리지 (Private Service)
+  # 내부 접근: http://minio:9000
+  # 콘솔: :9001 (Render 대시보드에서 직접 포트포워딩 불가 — 로컬 tunnel 사용)
+  # ──────────────────────────────────────────────────────────
+  - type: pserv
+    name: minio
+    image:
+      url: docker.io/minio/minio:RELEASE.2024-03-15T01-07-19Z
+    plan: starter
+    region: singapore
+    startCommand: server /data --console-address ":9001"
+    disk:
+      name: minio-data
+      mountPath: /data
+      sizeGB: 20
+    envVars:
+      - key: MINIO_ROOT_USER
+        sync: false   # api 의 AWS_ACCESS_KEY_ID 와 동일값
+      - key: MINIO_ROOT_PASSWORD
+        sync: false   # api 의 AWS_SECRET_ACCESS_KEY 와 동일값
+
+# ──────────────────────────────────────────────────────────
+# Managed Redis 7 — Queue + Cache + JWT deny-list
+# ──────────────────────────────────────────────────────────
+  - type: redis
+    name: ax-redis
+    plan: starter
+    region: singapore
+    maxmemoryPolicy: noeviction
+    ipAllowList: []   # 내부 서비스만 접근 허용

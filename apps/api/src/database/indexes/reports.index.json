@@ -1,0 +1,27 @@
+[
+  {
+    "name": "reports-by-org-generated",
+    "fields": ["docType", "orgId", "generatedAt"],
+    "ddoc": "idx-report-org-generated"
+  },
+  {
+    "name": "reports-by-complex-type",
+    "fields": ["docType", "orgId", "complexId", "reportType"],
+    "ddoc": "idx-report-complex-type"
+  },
+  {
+    "name": "reports-by-project",
+    "fields": ["docType", "orgId", "projectId", "generatedAt"],
+    "ddoc": "idx-report-project-generated"
+  },
+  {
+    "name": "reports-by-type-generated",
+    "fields": ["docType", "orgId", "reportType", "generatedAt"],
+    "ddoc": "idx-report-type-generated"
+  },
+  {
+    "name": "reports-public",
+    "fields": ["docType", "orgId", "isPublic", "generatedAt"],
+    "ddoc": "idx-report-public"
+  }
+]

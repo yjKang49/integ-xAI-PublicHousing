@@ -1,0 +1,53 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AX 글로벌 스타일 — 디자인 시스템 진입점
+// ─────────────────────────────────────────────────────────────────────────────
+
+@use '@angular/material' as mat;
+
+// ── Angular Material 테마 ─────────────────────────────────────────────────────
+// 공공/산업형 신뢰 블루 기반 Material 커스텀 테마
+@include mat.core();
+
+// Primary: 공공기관형 인디고-블루
+$ax-primary-palette: mat.m2-define-palette(mat.$m2-blue-palette, 800, 600, 900);
+// Accent: 중립 슬레이트 (과한 cyan 제거)
+$ax-accent-palette:  mat.m2-define-palette(mat.$m2-blue-grey-palette, 600);
+// Warn: 위험 빨강
+$ax-warn-palette:    mat.m2-define-palette(mat.$m2-red-palette, 700);
+
+$ax-theme: mat.m2-define-light-theme((
+  color: (
+    primary: $ax-primary-palette,
+    accent:  $ax-accent-palette,
+    warn:    $ax-warn-palette,
+  ),
+  typography: mat.m2-define-typography-config(
+    $font-family: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    $body-1: mat.m2-define-typography-level(14px, 1.5, 400),
+    $body-2: mat.m2-define-typography-level(14px, 1.5, 500),
+  ),
+  density: 0,
+));
+
+@include mat.all-component-themes($ax-theme);
+
+// ── 디자인 시스템 토큰 & 스타일 ──────────────────────────────────────────────
+@import 'styles/tokens';
+@import 'styles/typography';
+@import 'styles/utilities';
+@import 'styles/components';
+
+// ── 기본 리셋 ─────────────────────────────────────────────────────────────────
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--ax-color-bg-canvas);
+  font-family: var(--ax-font-family-base);
+  font-size: var(--ax-font-size-md);
+  color: var(--ax-color-text-primary);
+}

@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "name": "idx-floor-buildingId-floorNumber",
+      "fields": ["docType", "orgId", "buildingId", "floorNumber"],
+      "comment": "층 목록 (동별) — sort by floorNumber asc"
+    },
+    {
+      "name": "idx-floor-complexId",
+      "fields": ["docType", "orgId", "complexId"],
+      "comment": "단지 전체 트리 조회 (findTree)"
+    }
+  ],
+  "docId": "/_design/idx-floors"
+}

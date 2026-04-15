@@ -1,0 +1,32 @@
+[
+  {
+    "name": "defectcandidate-by-org-complex-created",
+    "fields": ["docType", "orgId", "complexId", "createdAt"],
+    "ddoc": "idx-defectcandidate-complex-created"
+  },
+  {
+    "name": "defectcandidate-by-org-review-created",
+    "fields": ["docType", "orgId", "reviewStatus", "createdAt"],
+    "ddoc": "idx-defectcandidate-review-created"
+  },
+  {
+    "name": "defectcandidate-by-org-mission-created",
+    "fields": ["docType", "orgId", "sourceMissionId", "createdAt"],
+    "ddoc": "idx-defectcandidate-mission-created"
+  },
+  {
+    "name": "defectcandidate-by-org-defecttype-created",
+    "fields": ["docType", "orgId", "defectType", "createdAt"],
+    "ddoc": "idx-defectcandidate-type-created"
+  },
+  {
+    "name": "defectcandidate-by-org-confidence-created",
+    "fields": ["docType", "orgId", "confidenceLevel", "reviewStatus"],
+    "ddoc": "idx-defectcandidate-confidence-review"
+  },
+  {
+    "name": "defectcandidate-by-job",
+    "fields": ["docType", "orgId", "detectionJobId"],
+    "ddoc": "idx-defectcandidate-job"
+  }
+]

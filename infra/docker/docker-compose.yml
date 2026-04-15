@@ -1,0 +1,102 @@
+version: '3.9'
+
+# ============================================================
+# AX Public Housing Platform — Phase 2 워커 전용 Compose
+#
+# 사용법:
+#   # Phase 2 워커만 올릴 때 (api/couchdb/redis는 이미 실행 중이어야 함)
+#   docker compose -f infra/docker/docker-compose.yml up -d
+#
+#   # Phase 1 인프라와 함께 전체 기동
+#   docker compose -f docker-compose.yml -f infra/docker/docker-compose.yml up -d
+#
+# 환경변수: 루트 .env 파일 또는 아래 기본값 사용
+# ============================================================
+
+services:
+  # ──────────────────────────────────────────────
+  # AI Worker — Bull consumer for ai-queue
+  # 처리: AI 이미지 분석, 드론 영상 분석, 균열 폭 측정
+  # ──────────────────────────────────────────────
+  ai-worker:
+    build:
+      context: ../..
+      dockerfile: apps/ai-worker/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_URL: ${API_URL:-http://api:3000}
+      WORKER_SECRET: ${WORKER_SECRET:-dev-worker-secret}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+    depends_on:
+      - redis-check
+    networks:
+      - ax-net
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "require(\"net\").createConnection(0).on(\"error\",()=>process.exit(0))"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ──────────────────────────────────────────────
+  # Job Worker — Bull consumer for job-queue
+  # 처리: 보고서 생성, RPA 자동화, 일정 자동생성
+  # ──────────────────────────────────────────────
+  job-worker:
+    build:
+      context: ../..
+      dockerfile: apps/job-worker/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_URL: ${API_URL:-http://api:3000}
+      WORKER_SECRET: ${WORKER_SECRET:-dev-worker-secret}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+      RPA_DRY_RUN: ${RPA_DRY_RUN:-true}
+    depends_on:
+      - redis-check
+    networks:
+      - ax-net
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "require(\"net\").createConnection(0).on(\"error\",()=>process.exit(0))"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ──────────────────────────────────────────────
+  # Redis health check sidecar
+  # 워커가 Redis 연결 가능 여부를 확인한 후 기동
+  # ──────────────────────────────────────────────
+  redis-check:
+    image: redis:7.2-alpine
+    command: >
+      sh -c "until redis-cli -h $${REDIS_HOST:-redis} -a $${REDIS_PASSWORD:-redispass} ping; do
+        echo 'Waiting for Redis...'; sleep 2;
+      done; echo 'Redis ready'"
+    environment:
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+    networks:
+      - ax-net
+    restart: 'no'
+
+networks:
+  ax-net:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME:-xai-publichousing}_ax-net

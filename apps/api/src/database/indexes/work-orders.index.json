@@ -1,0 +1,22 @@
+[
+  {
+    "index": { "fields": ["docType", "orgId", "status", "scheduledDate"] },
+    "name": "work-orders-by-status",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complexId", "scheduledDate"] },
+    "name": "work-orders-by-complex",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complaintId"] },
+    "name": "work-orders-by-complaint",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "assignedTo", "status"] },
+    "name": "work-orders-by-assignee",
+    "type": "json"
+  }
+]

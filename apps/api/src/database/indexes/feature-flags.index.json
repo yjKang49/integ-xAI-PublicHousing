@@ -1,0 +1,17 @@
+[
+  {
+    "name": "feature-flags-by-key",
+    "fields": ["docType", "key"],
+    "ddoc": "idx-featureflag-key"
+  },
+  {
+    "name": "feature-flags-by-enabled",
+    "fields": ["docType", "enabled", "key"],
+    "ddoc": "idx-featureflag-enabled-key"
+  },
+  {
+    "name": "feature-flags-by-created",
+    "fields": ["docType", "createdAt"],
+    "ddoc": "idx-featureflag-created"
+  }
+]

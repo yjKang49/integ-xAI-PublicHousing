@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "name": "idx-complex-orgId-createdAt",
+      "fields": ["docType", "orgId", "createdAt"],
+      "comment": "단지 목록 조회 — docType=housingComplex, orgId, sort by createdAt"
+    },
+    {
+      "name": "idx-complex-orgId-name",
+      "fields": ["docType", "orgId", "name"],
+      "comment": "단지 이름순 정렬"
+    }
+  ],
+  "docId": "/_design/idx-complexes"
+}

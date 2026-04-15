@@ -1,0 +1,17 @@
+[
+  {
+    "name": "defect-media-by-defect",
+    "fields": ["docType", "defectId", "capturedAt"],
+    "ddoc": "idx-defect-media-by-defect"
+  },
+  {
+    "name": "defect-media-by-session",
+    "fields": ["docType", "sessionId", "capturedAt"],
+    "ddoc": "idx-defect-media-by-session"
+  },
+  {
+    "name": "defect-media-pending-upload",
+    "fields": ["docType", "orgId", "storageKey"],
+    "ddoc": "idx-defect-media-pending-upload"
+  }
+]

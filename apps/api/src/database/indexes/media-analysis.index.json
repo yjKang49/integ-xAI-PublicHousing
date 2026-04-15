@@ -1,0 +1,17 @@
+[
+  {
+    "name": "media-pipeline-by-mission",
+    "fields": ["docType", "orgId", "missionId", "createdAt"],
+    "ddoc": "idx-mediapipeline-mission-created"
+  },
+  {
+    "name": "media-pipeline-by-media-item",
+    "fields": ["docType", "orgId", "mediaItemId"],
+    "ddoc": "idx-mediapipeline-mediaitem"
+  },
+  {
+    "name": "media-pipeline-by-status",
+    "fields": ["docType", "orgId", "overallStatus", "createdAt"],
+    "ddoc": "idx-mediapipeline-status"
+  }
+]

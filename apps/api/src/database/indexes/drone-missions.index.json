@@ -1,0 +1,37 @@
+[
+  {
+    "name": "drone-missions-by-org-complex",
+    "fields": ["docType", "orgId", "complexId", "createdAt"],
+    "ddoc": "idx-drone-mission-complex-created"
+  },
+  {
+    "name": "drone-missions-by-org-status",
+    "fields": ["docType", "orgId", "status", "createdAt"],
+    "ddoc": "idx-drone-mission-status-created"
+  },
+  {
+    "name": "drone-missions-by-session",
+    "fields": ["docType", "orgId", "sessionId", "flightDate"],
+    "ddoc": "idx-drone-mission-session"
+  },
+  {
+    "name": "drone-missions-by-building",
+    "fields": ["docType", "orgId", "buildingId", "flightDate"],
+    "ddoc": "idx-drone-mission-building"
+  },
+  {
+    "name": "drone-missions-by-pilot",
+    "fields": ["docType", "orgId", "pilot", "flightDate"],
+    "ddoc": "idx-drone-mission-pilot"
+  },
+  {
+    "name": "media-frames-by-mission",
+    "fields": ["docType", "orgId", "missionId", "frameIndex"],
+    "ddoc": "idx-mediaframe-mission-idx"
+  },
+  {
+    "name": "media-frames-by-media-item",
+    "fields": ["docType", "orgId", "mediaItemId", "frameIndex"],
+    "ddoc": "idx-mediaframe-item-idx"
+  }
+]

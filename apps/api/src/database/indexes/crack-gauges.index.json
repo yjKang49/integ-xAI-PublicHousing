@@ -1,0 +1,27 @@
+[
+  {
+    "name": "crack-gauges-by-org-created",
+    "fields": ["docType", "orgId", "createdAt"],
+    "ddoc": "idx-cgp-org-created"
+  },
+  {
+    "name": "crack-gauges-by-complex",
+    "fields": ["docType", "orgId", "complexId", "isActive"],
+    "ddoc": "idx-cgp-complex-active"
+  },
+  {
+    "name": "crack-gauges-by-building",
+    "fields": ["docType", "orgId", "buildingId", "isActive"],
+    "ddoc": "idx-cgp-building-active"
+  },
+  {
+    "name": "crack-gauges-by-active",
+    "fields": ["docType", "orgId", "isActive", "createdAt"],
+    "ddoc": "idx-cgp-active-created"
+  },
+  {
+    "name": "crack-gauges-by-floor",
+    "fields": ["docType", "orgId", "floorId", "isActive"],
+    "ddoc": "idx-cgp-floor-active"
+  }
+]

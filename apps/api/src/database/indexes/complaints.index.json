@@ -1,0 +1,32 @@
+[
+  {
+    "index": { "fields": ["docType", "orgId", "status", "submittedAt"] },
+    "name": "complaints-by-status",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "complexId", "submittedAt"] },
+    "name": "complaints-by-complex",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "assignedTo", "status"] },
+    "name": "complaints-by-assignee",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "priority", "submittedAt"] },
+    "name": "complaints-by-priority",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "dueDate", "status"] },
+    "name": "complaints-overdue",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "category", "status"] },
+    "name": "complaints-by-category",
+    "type": "json"
+  }
+]

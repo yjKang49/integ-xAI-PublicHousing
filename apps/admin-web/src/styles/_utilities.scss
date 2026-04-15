@@ -1,0 +1,165 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AX 유틸리티 클래스 — 레이아웃 · 간격 · 표시 보조
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 페이지 래퍼 ───────────────────────────────────────────────────────────────
+.ax-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ax-spacing-20);
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+// ── 섹션 블록 ─────────────────────────────────────────────────────────────────
+.ax-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ax-spacing-12);
+}
+
+// ── 섹션 레이블 구분선 ────────────────────────────────────────────────────────
+.ax-section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ax-spacing-6);
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ax-letter-spacing-wider);
+  color: var(--ax-color-text-tertiary);
+  margin: var(--ax-spacing-4) 0 var(--ax-spacing-2);
+
+  mat-icon, .ax-section-icon {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    color: var(--ax-color-text-tertiary);
+  }
+}
+
+// ── KPI 그리드 ────────────────────────────────────────────────────────────────
+.ax-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--ax-spacing-12);
+
+  @media (max-width: 1280px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px)  { grid-template-columns: 1fr; }
+}
+
+.ax-kpi-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ax-spacing-12);
+
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px)  { grid-template-columns: 1fr; }
+}
+
+// ── 하단 그리드 (요약 카드) ───────────────────────────────────────────────────
+.ax-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ax-spacing-16);
+
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px)  { grid-template-columns: 1fr; }
+}
+
+.ax-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ax-spacing-16);
+
+  @media (max-width: 768px) { grid-template-columns: 1fr; }
+}
+
+// ── 플렉스 유틸 ───────────────────────────────────────────────────────────────
+.ax-flex        { display: flex; }
+.ax-flex-col    { display: flex; flex-direction: column; }
+.ax-flex-center { display: flex; align-items: center; justify-content: center; }
+.ax-flex-between { display: flex; align-items: center; justify-content: space-between; }
+.ax-flex-gap-8  { gap: var(--ax-spacing-8); }
+.ax-flex-gap-12 { gap: var(--ax-spacing-12); }
+.ax-flex-gap-16 { gap: var(--ax-spacing-16); }
+.ax-spacer      { flex: 1; }
+
+// ── 텍스트 유틸 ───────────────────────────────────────────────────────────────
+.ax-text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ax-text-nowrap { white-space: nowrap; }
+.ax-text-right  { text-align: right; }
+.ax-text-center { text-align: center; }
+
+// ── 상태 색상 유틸 ────────────────────────────────────────────────────────────
+.ax-text-success { color: var(--ax-color-success-text) !important; }
+.ax-text-warning { color: var(--ax-color-warning-text) !important; }
+.ax-text-danger  { color: var(--ax-color-danger-text) !important; }
+.ax-text-info    { color: var(--ax-color-info-text) !important; }
+.ax-text-neutral { color: var(--ax-color-neutral-text) !important; }
+.ax-text-muted   { color: var(--ax-color-text-tertiary) !important; }
+.ax-text-primary { color: var(--ax-color-text-primary) !important; }
+
+// ── 카드 구분선 ───────────────────────────────────────────────────────────────
+.ax-divider {
+  border: none;
+  border-top: 1px solid var(--ax-color-border-default);
+  margin: var(--ax-spacing-12) 0;
+}
+
+// ── 로딩 스피너 래퍼 ──────────────────────────────────────────────────────────
+.ax-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ax-spacing-64);
+  gap: var(--ax-spacing-12);
+  color: var(--ax-color-text-tertiary);
+  font-size: var(--ax-font-size-sm);
+}
+
+// ── 접기/펼침 애니메이션 ──────────────────────────────────────────────────────
+@keyframes ax-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.ax-spinning {
+  animation: ax-spin 1s linear infinite;
+}
+
+// ── 포커스 링 글로벌 ──────────────────────────────────────────────────────────
+*:focus-visible {
+  outline: 2px solid var(--ax-color-brand-primary);
+  outline-offset: 2px;
+}
+
+// ── 스크롤바 정리 ─────────────────────────────────────────────────────────────
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--ax-color-border-strong);
+  border-radius: var(--ax-radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ax-color-text-disabled);
+}
+
+// ── 호버 배경 유틸 ────────────────────────────────────────────────────────────
+.ax-hover-surface {
+  transition: background var(--ax-transition-fast);
+  border-radius: var(--ax-radius-md);
+
+  &:hover { background: var(--ax-color-bg-surface-alt); }
+}
+
+// ── 클릭 커서 ─────────────────────────────────────────────────────────────────
+.ax-clickable { cursor: pointer; }

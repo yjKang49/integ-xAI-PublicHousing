@@ -1,0 +1,14 @@
+[
+  {
+    "name": "idx-risk-score-org-latest",
+    "fields": ["docType", "orgId", "isLatest", "calculatedAt"]
+  },
+  {
+    "name": "idx-risk-score-complex-target",
+    "fields": ["docType", "orgId", "complexId", "targetType", "targetId", "isLatest"]
+  },
+  {
+    "name": "idx-risk-score-level",
+    "fields": ["docType", "orgId", "level", "isLatest", "calculatedAt"]
+  }
+]

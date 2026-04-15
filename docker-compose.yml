@@ -1,0 +1,205 @@
+version: '3.9'
+
+# ============================================================
+# AX Public Housing Platform — Docker Compose (dev)
+# Usage: docker compose up -d
+# ============================================================
+
+services:
+  # ──────────────────────────────────────────────
+  # NestJS API
+  # ──────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COUCHDB_URL: http://couchdb:5984
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:-secret}
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ap-northeast-2
+      S3_BUCKET: ${S3_BUCKET:-ax-media}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-32chars}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGINS: http://localhost:4200,http://localhost:8100
+      WORKER_SECRET: ${WORKER_SECRET:-dev-worker-secret}
+    depends_on:
+      couchdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - ax-net
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Angular Admin Web (production build served by nginx)
+  # ──────────────────────────────────────────────
+  admin-web:
+    build:
+      context: .
+      dockerfile: apps/admin-web/Dockerfile
+    ports:
+      - '4200:80'
+    depends_on:
+      - api
+    networks:
+      - ax-net
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # AI Worker — Bull consumer for ai-queue
+  # Phase 2: AI 이미지·드론 영상 분석
+  # ──────────────────────────────────────────────
+  ai-worker:
+    build:
+      context: .
+      dockerfile: apps/ai-worker/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+      WORKER_SECRET: ${WORKER_SECRET:-dev-worker-secret}
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - ax-net
+    restart: unless-stopped
+    profiles:
+      - phase2
+
+  # ──────────────────────────────────────────────
+  # Job Worker — Bull consumer for job-queue
+  # Phase 2: 보고서 생성, RPA 자동화, 일정 생성
+  # ──────────────────────────────────────────────
+  job-worker:
+    build:
+      context: .
+      dockerfile: apps/job-worker/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+      WORKER_SECRET: ${WORKER_SECRET:-dev-worker-secret}
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+      RPA_DRY_RUN: ${RPA_DRY_RUN:-true}
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - ax-net
+    restart: unless-stopped
+    profiles:
+      - phase2
+
+  # ──────────────────────────────────────────────
+  # CouchDB — primary database
+  # ──────────────────────────────────────────────
+  couchdb:
+    image: couchdb:3.3
+    ports:
+      - '5984:5984'
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:-secret}
+    volumes:
+      - couchdb-data:/opt/couchdb/data
+      - ./infra/couchdb/local.ini:/opt/couchdb/etc/local.d/ax-local.ini:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5984/_up']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ax-net
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Redis — queue + cache + JWT deny-list
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-redispass}', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ax-net
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # MinIO — S3-compatible object storage
+  # ──────────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-03-15T01-07-19Z
+    ports:
+      - '9000:9000'   # API
+      - '9001:9001'   # Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mc alias set myminio http://127.0.0.1:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD >/dev/null && mc ready myminio']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ax-net
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # MinIO init — creates default bucket
+  # ──────────────────────────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin} &&
+        mc mb --ignore-existing local/${S3_BUCKET:-ax-media} &&
+        mc anonymous set download local/${S3_BUCKET:-ax-media}/public &&
+        echo 'MinIO bucket initialized'
+      "
+    networks:
+      - ax-net
+
+volumes:
+  couchdb-data:
+  redis-data:
+  minio-data:
+
+networks:
+  ax-net:
+    driver: bridge

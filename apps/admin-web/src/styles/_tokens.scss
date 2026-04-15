@@ -1,0 +1,165 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AX 공공임대주택 안전 유지관리 플랫폼 — 디자인 토큰
+// 역할 기반 CSS 커스텀 프로퍼티 + SCSS 변수 이중 체계
+// ─────────────────────────────────────────────────────────────────────────────
+
+:root {
+  // ── Brand / Primary ──────────────────────────────────────────────────────
+  --ax-color-brand-primary:        #1d4289;   // 공공기관형 신뢰 블루
+  --ax-color-brand-primary-hover:  #163472;
+  --ax-color-brand-primary-subtle: #e8f0fb;
+  --ax-color-brand-primary-muted:  #c7d9f5;
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  --ax-color-text-primary:   #0f172a;   // Near black — 본문·카드 제목
+  --ax-color-text-secondary: #334155;   // 보조 텍스트
+  --ax-color-text-tertiary:  #64748b;   // 메타·캡션
+  --ax-color-text-disabled:  #94a3b8;   // 비활성
+  --ax-color-text-inverse:   #ffffff;   // 다크 배경 위
+  --ax-color-text-link:      #1d4289;
+
+  // ── Background ───────────────────────────────────────────────────────────
+  --ax-color-bg-canvas:      #f1f5f9;   // 페이지 전체 캔버스
+  --ax-color-bg-surface:     #ffffff;   // 카드·패널
+  --ax-color-bg-surface-alt: #f8fafc;   // 얼룩말 배경·hover
+  --ax-color-bg-sidebar:     #18243f;   // 사이드바 (다크 슬레이트 네이비)
+  --ax-color-bg-header:      #18243f;   // 헤더
+  --ax-color-bg-overlay:     rgba(15, 23, 42, 0.5);
+
+  // ── Border ───────────────────────────────────────────────────────────────
+  --ax-color-border-default: #e2e8f0;
+  --ax-color-border-strong:  #cbd5e1;
+  --ax-color-border-subtle:  #f1f5f9;
+
+  // ── State: Success ───────────────────────────────────────────────────────
+  --ax-color-success:        #16a34a;
+  --ax-color-success-subtle: #dcfce7;
+  --ax-color-success-text:   #15803d;
+
+  // ── State: Warning ───────────────────────────────────────────────────────
+  --ax-color-warning:        #d97706;
+  --ax-color-warning-subtle: #fef3c7;
+  --ax-color-warning-text:   #b45309;
+
+  // ── State: Danger ────────────────────────────────────────────────────────
+  --ax-color-danger:         #dc2626;
+  --ax-color-danger-subtle:  #fee2e2;
+  --ax-color-danger-text:    #b91c1c;
+
+  // ── State: Info ──────────────────────────────────────────────────────────
+  --ax-color-info:           #2563eb;
+  --ax-color-info-subtle:    #dbeafe;
+  --ax-color-info-text:      #1d4ed8;
+
+  // ── State: Neutral ───────────────────────────────────────────────────────
+  --ax-color-neutral:        #64748b;
+  --ax-color-neutral-subtle: #f1f5f9;
+  --ax-color-neutral-text:   #475569;
+
+  // ── Focus ────────────────────────────────────────────────────────────────
+  --ax-color-focus-ring:     rgba(29, 66, 137, 0.35);
+
+  // ── Typography ───────────────────────────────────────────────────────────
+  --ax-font-family-base: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --ax-font-family-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+  --ax-font-size-xs:  11px;   // meta caption, unit, badge
+  --ax-font-size-sm:  12px;   // label, helper, tag
+  --ax-font-size-md:  14px;   // body (기본)
+  --ax-font-size-lg:  15px;   // card title
+  --ax-font-size-xl:  17px;   // section heading
+  --ax-font-size-2xl: 20px;   // page title
+  --ax-font-size-kpi: 26px;   // KPI 숫자
+
+  --ax-font-weight-regular:  400;
+  --ax-font-weight-medium:   500;
+  --ax-font-weight-semibold: 600;
+  --ax-font-weight-bold:     700;
+
+  --ax-line-height-tight:   1.2;
+  --ax-line-height-normal:  1.5;
+  --ax-line-height-relaxed: 1.7;
+
+  --ax-letter-spacing-tight:  -0.01em;
+  --ax-letter-spacing-normal: 0;
+  --ax-letter-spacing-wide:   0.03em;
+  --ax-letter-spacing-wider:  0.06em;   // 섹션 레이블용
+
+  // ── Spacing ──────────────────────────────────────────────────────────────
+  --ax-spacing-2:  2px;
+  --ax-spacing-4:  4px;
+  --ax-spacing-6:  6px;
+  --ax-spacing-8:  8px;
+  --ax-spacing-12: 12px;
+  --ax-spacing-16: 16px;
+  --ax-spacing-20: 20px;
+  --ax-spacing-24: 24px;
+  --ax-spacing-32: 32px;
+  --ax-spacing-48: 48px;
+  --ax-spacing-64: 64px;
+
+  // Layout
+  --ax-page-gutter:        24px;
+  --ax-card-padding:       16px;
+  --ax-card-padding-lg:    20px;
+  --ax-filter-bar-height:  52px;
+  --ax-header-height:      56px;
+  --ax-sidebar-width:      256px;
+  --ax-sidebar-collapsed:  60px;
+  --ax-form-row-gap:       16px;
+  --ax-table-cell-v:       10px;
+  --ax-table-cell-h:       14px;
+  --ax-modal-gap:          20px;
+
+  // ── Radius ───────────────────────────────────────────────────────────────
+  --ax-radius-sm:  4px;
+  --ax-radius-md:  6px;
+  --ax-radius-lg:  8px;
+  --ax-radius-xl:  12px;
+  --ax-radius-full: 9999px;
+
+  // ── Shadow ───────────────────────────────────────────────────────────────
+  --ax-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ax-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.10), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --ax-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --ax-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+
+  // ── Border Width ─────────────────────────────────────────────────────────
+  --ax-border-width-default: 1px;
+  --ax-border-width-strong:  2px;
+
+  // ── Transition ───────────────────────────────────────────────────────────
+  --ax-transition-fast:   100ms ease;
+  --ax-transition-base:   150ms ease;
+  --ax-transition-slow:   250ms ease;
+
+  // ── Z-index ──────────────────────────────────────────────────────────────
+  --ax-z-sidebar:   200;
+  --ax-z-header:    300;
+  --ax-z-dropdown:  400;
+  --ax-z-modal:     500;
+  --ax-z-toast:     600;
+}
+
+// ── SCSS 변수 (컴파일타임 참조용) ────────────────────────────────────────────
+$ax-color-brand-primary:        var(--ax-color-brand-primary);
+$ax-color-text-primary:         var(--ax-color-text-primary);
+$ax-color-text-secondary:       var(--ax-color-text-secondary);
+$ax-color-text-tertiary:        var(--ax-color-text-tertiary);
+$ax-color-bg-canvas:            var(--ax-color-bg-canvas);
+$ax-color-bg-surface:           var(--ax-color-bg-surface);
+$ax-color-border-default:       var(--ax-color-border-default);
+$ax-color-success:              var(--ax-color-success);
+$ax-color-warning:              var(--ax-color-warning);
+$ax-color-danger:               var(--ax-color-danger);
+$ax-color-info:                 var(--ax-color-info);
+$ax-color-neutral:              var(--ax-color-neutral);
+
+$ax-font-family-base:           var(--ax-font-family-base);
+$ax-font-size-md:               var(--ax-font-size-md);
+$ax-page-gutter:                var(--ax-page-gutter);
+$ax-card-padding:               var(--ax-card-padding);
+$ax-sidebar-width:              var(--ax-sidebar-width);
+$ax-header-height:              var(--ax-header-height);
+$ax-radius-md:                  var(--ax-radius-md);
+$ax-shadow-sm:                  var(--ax-shadow-sm);

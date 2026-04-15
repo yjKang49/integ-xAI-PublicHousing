@@ -1,0 +1,32 @@
+[
+  {
+    "name": "sensors-by-org-complex",
+    "fields": ["docType", "orgId", "complexId"],
+    "ddoc": "idx-sensor-org-complex"
+  },
+  {
+    "name": "sensors-by-org-type",
+    "fields": ["docType", "orgId", "sensorType", "status"],
+    "ddoc": "idx-sensor-org-type-status"
+  },
+  {
+    "name": "sensors-by-devicekey",
+    "fields": ["docType", "orgId", "deviceKey"],
+    "ddoc": "idx-sensor-devicekey"
+  },
+  {
+    "name": "sensors-by-building",
+    "fields": ["docType", "orgId", "buildingId", "sensorType"],
+    "ddoc": "idx-sensor-building-type"
+  },
+  {
+    "name": "sensors-by-status-created",
+    "fields": ["docType", "orgId", "status", "createdAt"],
+    "ddoc": "idx-sensor-status-created"
+  },
+  {
+    "name": "sensors-by-asset",
+    "fields": ["docType", "orgId", "assetId"],
+    "ddoc": "idx-sensor-asset"
+  }
+]

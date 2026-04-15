@@ -1,0 +1,27 @@
+[
+  {
+    "name": "crack-measurements-by-gauge-time",
+    "fields": ["docType", "orgId", "gaugePointId", "measuredAt"],
+    "ddoc": "idx-cm-gauge-time"
+  },
+  {
+    "name": "crack-measurements-by-complex-time",
+    "fields": ["docType", "orgId", "complexId", "measuredAt"],
+    "ddoc": "idx-cm-complex-time"
+  },
+  {
+    "name": "crack-measurements-exceeds-threshold",
+    "fields": ["docType", "orgId", "exceedsThreshold", "measuredAt"],
+    "ddoc": "idx-cm-exceeds-time"
+  },
+  {
+    "name": "crack-measurements-by-session",
+    "fields": ["docType", "orgId", "sessionId", "measuredAt"],
+    "ddoc": "idx-cm-session-time"
+  },
+  {
+    "name": "crack-measurements-by-gauge-exceeds",
+    "fields": ["docType", "orgId", "gaugePointId", "exceedsThreshold"],
+    "ddoc": "idx-cm-gauge-exceeds"
+  }
+]

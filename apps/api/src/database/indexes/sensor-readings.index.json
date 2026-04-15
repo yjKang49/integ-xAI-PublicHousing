@@ -1,0 +1,27 @@
+[
+  {
+    "name": "readings-by-device-recorded",
+    "fields": ["docType", "orgId", "deviceId", "recordedAt"],
+    "ddoc": "idx-reading-device-recorded"
+  },
+  {
+    "name": "readings-by-devicekey-recorded",
+    "fields": ["docType", "orgId", "deviceKey", "recordedAt"],
+    "ddoc": "idx-reading-devicekey-recorded"
+  },
+  {
+    "name": "readings-by-complex-type-recorded",
+    "fields": ["docType", "orgId", "complexId", "sensorType", "recordedAt"],
+    "ddoc": "idx-reading-complex-type-recorded"
+  },
+  {
+    "name": "readings-by-threshold-status",
+    "fields": ["docType", "orgId", "thresholdStatus", "recordedAt"],
+    "ddoc": "idx-reading-threshold-status"
+  },
+  {
+    "name": "readings-by-org-recorded",
+    "fields": ["docType", "orgId", "recordedAt"],
+    "ddoc": "idx-reading-org-recorded"
+  }
+]

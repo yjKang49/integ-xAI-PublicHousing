@@ -1,0 +1,45 @@
+{
+  "name": "ax-public-housing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AX 기반 공공임대주택 시설물 안전유지관리 플랫폼 — Monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:shared": "yarn workspace @ax/shared build",
+    "build:api": "yarn workspace @ax/api build",
+    "build:admin": "yarn workspace @ax/admin-web build",
+    "build:mobile": "yarn workspace @ax/mobile-app build",
+    "build:ai-worker": "yarn workspace @ax/ai-worker build",
+    "build:job-worker": "yarn workspace @ax/job-worker build",
+    "dev:shared": "yarn workspace @ax/shared watch",
+    "dev:api": "yarn workspace @ax/api start:dev",
+    "dev:admin": "yarn workspace @ax/admin-web start",
+    "dev:mobile": "yarn workspace @ax/mobile-app serve",
+    "dev:ai-worker": "yarn workspace @ax/ai-worker start:dev",
+    "dev:job-worker": "yarn workspace @ax/job-worker start:dev",
+    "dev": "concurrently -n shared,api,admin -c cyan,green,blue \"yarn dev:shared\" \"yarn dev:api\" \"yarn dev:admin\"",
+    "dev:workers": "concurrently -n shared,ai-worker,job-worker -c cyan,yellow,magenta \"yarn dev:shared\" \"yarn dev:ai-worker\" \"yarn dev:job-worker\"",
+    "dev:all": "concurrently -n shared,api,admin,mobile,ai-worker,job-worker -c cyan,green,blue,white,yellow,magenta \"yarn dev:shared\" \"yarn dev:api\" \"yarn dev:admin\" \"yarn dev:mobile\" \"yarn dev:ai-worker\" \"yarn dev:job-worker\"",
+    "test:api": "yarn workspace @ax/api test",
+    "test:e2e": "yarn workspace @ax/api test:e2e",
+    "test:admin": "yarn workspace @ax/admin-web test",
+    "seed": "yarn workspace @ax/api seed",
+    "seed:demo": "yarn workspace @ax/api seed:demo",
+    "seed:ai": "yarn workspace @ax/api ts-node src/database/seeds/ai-performance.seed.ts",
+    "docker:up": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f docker-compose.dev.yml down",
+    "lint": "eslint \"apps/**/*.ts\" \"packages/**/*.ts\" --fix",
+    "watch:cracks": "node scripts/watch-crack-images.js"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0"
+  }
+}

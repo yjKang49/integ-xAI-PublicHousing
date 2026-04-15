@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 11pt;
+      color: #222;
+      padding: 20mm 15mm;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid #1a237e;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .report-title h1 {
+      font-size: 18pt;
+      color: #1a237e;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .report-title .subtitle { font-size: 10pt; color: #555; }
+    .report-meta { text-align: right; font-size: 9pt; color: #666; }
+    .report-meta p { margin-bottom: 2px; }
+
+    /* ── Section ── */
+    .section { margin-bottom: 24px; }
+    .section-title {
+      font-size: 13pt;
+      font-weight: 700;
+      color: #1a237e;
+      border-left: 4px solid #1a237e;
+      padding-left: 8px;
+      margin-bottom: 12px;
+    }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .kpi-card.critical { border-top: 3px solid #c62828; }
+    .kpi-card.high     { border-top: 3px solid #e65100; }
+    .kpi-card.ok       { border-top: 3px solid #2e7d32; }
+    .kpi-card.info     { border-top: 3px solid #1565c0; }
+    .kpi-value { font-size: 22pt; font-weight: 700; color: #1a237e; }
+    .kpi-value.danger { color: #c62828; }
+    .kpi-label { font-size: 9pt; color: #666; margin-top: 4px; }
+
+    /* ── Info Table ── */
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .info-table td { padding: 6px 10px; border: 1px solid #ddd; font-size: 10pt; }
+    .info-table td:first-child { background: #f5f7fa; font-weight: 600; width: 25%; }
+
+    /* ── Defect Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    .data-table th {
+      background: #1a237e;
+      color: white;
+      padding: 7px 8px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt;
+    }
+    .data-table td { padding: 6px 8px; border: 1px solid #ddd; vertical-align: top; }
+    .data-table tr:nth-child(even) td { background: #fafafa; }
+    .data-table tr:hover td { background: #e8eaf6; }
+
+    /* ── Severity badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 8pt;
+      font-weight: 600;
+    }
+    .badge-CRITICAL { background: #ffebee; color: #c62828; }
+    .badge-HIGH     { background: #fff3e0; color: #e65100; }
+    .badge-MEDIUM   { background: #e3f2fd; color: #1565c0; }
+    .badge-LOW      { background: #e8f5e9; color: #2e7d32; }
+
+    /* ── Footer ── */
+    .report-footer {
+      position: fixed;
+      bottom: 10mm;
+      left: 15mm;
+      right: 15mm;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #999;
+      border-top: 1px solid #ddd;
+      padding-top: 4px;
+    }
+
+    /* ── Page break ── */
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+
+  <!-- Report Header -->
+  <div class="report-header">
+    <div class="report-title">
+      <h1>시설물 정밀점검 결과 보고서</h1>
+      <div class="subtitle">{{ complexName }} | 점검 프로젝트: {{ projectName }}</div>
+    </div>
+    <div class="report-meta">
+      <p><strong>작성일:</strong> {{ generatedDate }}</p>
+      <p><strong>작성자:</strong> {{ generatedBy }}</p>
+      <p><strong>보고서 번호:</strong> {{ reportId }}</p>
+    </div>
+  </div>
+
+  <!-- Section 1: 기본 정보 -->
+  <div class="section">
+    <div class="section-title">1. 점검 기본 정보</div>
+    <table class="info-table">
+      <tr><td>단지명</td><td>{{ complexName }}</td><td>점검 유형</td><td>{{ inspectionType }}</td></tr>
+      <tr><td>점검 기간</td><td>{{ periodStart }} ~ {{ periodEnd }}</td><td>점검 세션 수</td><td>{{ sessionCount }}건</td></tr>
+      <tr><td>점검자</td><td colspan="3">{{ inspectors }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Section 2: KPI 요약 -->
+  <div class="section">
+    <div class="section-title">2. 점검 결과 요약</div>
+    <div class="kpi-grid">
+      <div class="kpi-card critical">
+        <div class="kpi-value danger">{{ criticalCount }}</div>
+        <div class="kpi-label">긴급 결함</div>
+      </div>
+      <div class="kpi-card high">
+        <div class="kpi-value">{{ highCount }}</div>
+        <div class="kpi-label">높음 결함</div>
+      </div>
+      <div class="kpi-card ok">
+        <div class="kpi-value">{{ repairedCount }}</div>
+        <div class="kpi-label">보수 완료</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-value">{{ totalCount }}</div>
+        <div class="kpi-label">총 결함 수</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: 결함 목록 -->
+  <div class="section">
+    <div class="section-title">3. 결함 상세 목록</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:4%">No.</th>
+          <th style="width:10%">건물</th>
+          <th style="width:10%">층</th>
+          <th style="width:12%">결함 유형</th>
+          <th style="width:10%">심각도</th>
+          <th style="width:20%">위치</th>
+          <th style="width:10%">폭(mm)</th>
+          <th style="width:10%">길이(mm)</th>
+          <th style="width:8%">보수</th>
+          <th style="width:6%">점검일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each defects}}
+        <tr>
+          <td>{{ increment @index }}</td>
+          <td>{{ this.buildingName }}</td>
+          <td>{{ this.floorName }}</td>
+          <td>{{ this.defectTypeLabel }}</td>
+          <td><span class="badge badge-{{ this.severity }}">{{ this.severityLabel }}</span></td>
+          <td>{{ this.locationDescription }}</td>
+          <td>{{ this.widthMm }}</td>
+          <td>{{ this.lengthMm }}</td>
+          <td>{{ yesNo this.isRepaired }}</td>
+          <td>{{ shortDate this.createdAt }}</td>
+        </tr>
+        {{/each}}
+        {{#if noDefects}}
+        <tr><td colspan="10" style="text-align:center;color:#999;padding:20px">등록된 결함이 없습니다.</td></tr>
+        {{/if}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Section 4: 균열 모니터링 요약 (있는 경우) -->
+  {{#if crackData}}
+  <div class="section page-break">
+    <div class="section-title">4. 균열 모니터링 현황</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>게이지 포인트</th>
+          <th>위치</th>
+          <th>기준값(mm)</th>
+          <th>임계치(mm)</th>
+          <th>최근 측정값(mm)</th>
+          <th>변화량(mm)</th>
+          <th>상태</th>
+          <th>최근 측정일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each crackData}}
+        <tr>
+          <td>{{ this.name }}</td>
+          <td>{{ this.location }}</td>
+          <td>{{ this.baselineWidthMm }}</td>
+          <td>{{ this.thresholdMm }}</td>
+          <td>{{ this.latestWidthMm }}</td>
+          <td>{{ this.changeFromBaseline }}</td>
+          <td>
+            {{#if this.exceedsThreshold}}
+              <span class="badge badge-CRITICAL">임계 초과</span>
+            {{else}}
+              <span class="badge badge-LOW">정상</span>
+            {{/if}}
+          </td>
+          <td>{{ shortDate this.lastMeasuredAt }}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  <!-- Footer -->
+  <div class="report-footer">
+    <span>AX 공공임대주택 안전관리 플랫폼</span>
+    <span>생성일: {{ generatedDate }} | 보고서 ID: {{ reportId }}</span>
+  </div>
+
+</body>
+</html>

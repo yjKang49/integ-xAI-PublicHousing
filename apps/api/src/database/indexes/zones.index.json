@@ -1,0 +1,20 @@
+{
+  "indexes": [
+    {
+      "name": "idx-zone-floorId-name",
+      "fields": ["docType", "orgId", "floorId", "name"],
+      "comment": "구역 목록 (층별) — sort by name"
+    },
+    {
+      "name": "idx-zone-buildingId",
+      "fields": ["docType", "orgId", "buildingId"],
+      "comment": "구역 목록 (동별)"
+    },
+    {
+      "name": "idx-zone-complexId",
+      "fields": ["docType", "orgId", "complexId"],
+      "comment": "단지 전체 트리 조회 (findTree)"
+    }
+  ],
+  "docId": "/_design/idx-zones"
+}

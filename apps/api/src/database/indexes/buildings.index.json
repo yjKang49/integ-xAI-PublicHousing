@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "name": "idx-building-complexId-name",
+      "fields": ["docType", "orgId", "complexId", "name"],
+      "comment": "동 목록 조회 (단지별) — sort by name"
+    },
+    {
+      "name": "idx-building-orgId-createdAt",
+      "fields": ["docType", "orgId", "createdAt"],
+      "comment": "전체 동 목록 시간순"
+    }
+  ],
+  "docId": "/_design/idx-buildings"
+}

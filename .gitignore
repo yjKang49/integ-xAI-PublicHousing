@@ -1,0 +1,28 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+
+# Angular
+.angular/
+
+# Ionic
+.ionic/
+www/
+
+# Capacitor native
+android/
+ios/
+
+# Docker
+*.tar
+
+# Editors
+.vscode/settings.json
+.idea/
+*.swp

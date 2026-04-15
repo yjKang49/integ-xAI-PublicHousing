@@ -1,0 +1,333 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AX 글로벌 컴포넌트 스타일 오버라이드 — Angular Material 보정
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── mat-card 기본 스타일 정규화 ────────────────────────────────────────────────
+.mat-mdc-card {
+  border-radius: var(--ax-radius-lg) !important;
+  box-shadow: var(--ax-shadow-sm) !important;
+  border: 1px solid var(--ax-color-border-default) !important;
+  background: var(--ax-color-bg-surface) !important;
+  transition: box-shadow var(--ax-transition-base) !important;
+
+  &:hover {
+    box-shadow: var(--ax-shadow-md) !important;
+  }
+}
+
+.mat-mdc-card-header {
+  padding: var(--ax-card-padding) var(--ax-card-padding) var(--ax-spacing-12) !important;
+}
+
+.mat-mdc-card-content {
+  padding: 0 var(--ax-card-padding) var(--ax-card-padding) !important;
+
+  &:first-child { padding-top: var(--ax-card-padding) !important; }
+}
+
+// ── mat-card-title 정규화 ────────────────────────────────────────────────────
+.mat-mdc-card-title {
+  font-size: var(--ax-font-size-lg) !important;
+  font-weight: var(--ax-font-weight-semibold) !important;
+  color: var(--ax-color-text-primary) !important;
+  line-height: var(--ax-line-height-tight) !important;
+}
+
+.mat-mdc-card-subtitle {
+  font-size: var(--ax-font-size-sm) !important;
+  color: var(--ax-color-text-tertiary) !important;
+}
+
+// ── mat-option 텍스트 색상 고정 ──────────────────────────────────────────────
+.mat-mdc-option .mdc-list-item__primary-text,
+.mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text,
+.mat-mdc-option:hover .mdc-list-item__primary-text {
+  color: var(--ax-color-text-primary) !important;
+}
+
+// ── mat-chip 정규화 ──────────────────────────────────────────────────────────
+.mat-mdc-chip {
+  font-size: var(--ax-font-size-sm) !important;
+  font-weight: var(--ax-font-weight-medium) !important;
+}
+
+// ── mat-table 기본 스타일 ─────────────────────────────────────────────────────
+.mat-mdc-table {
+  width: 100%;
+  background: var(--ax-color-bg-surface) !important;
+}
+
+.mat-mdc-header-cell {
+  font-size: var(--ax-font-size-xs) !important;
+  font-weight: var(--ax-font-weight-semibold) !important;
+  text-transform: uppercase;
+  letter-spacing: var(--ax-letter-spacing-wider) !important;
+  color: var(--ax-color-text-tertiary) !important;
+  background: var(--ax-color-bg-surface-alt) !important;
+  border-bottom: 1px solid var(--ax-color-border-strong) !important;
+  padding: var(--ax-table-cell-v) var(--ax-table-cell-h) !important;
+  white-space: nowrap;
+}
+
+.mat-mdc-cell {
+  font-size: var(--ax-font-size-md) !important;
+  color: var(--ax-color-text-primary) !important;
+  border-bottom: 1px solid var(--ax-color-border-subtle) !important;
+  padding: var(--ax-table-cell-v) var(--ax-table-cell-h) !important;
+}
+
+.mat-mdc-row:hover .mat-mdc-cell {
+  background: var(--ax-color-bg-surface-alt) !important;
+}
+
+.mat-mdc-footer-cell {
+  font-size: var(--ax-font-size-sm) !important;
+  color: var(--ax-color-text-secondary) !important;
+  border-top: 1px solid var(--ax-color-border-strong) !important;
+  padding: var(--ax-table-cell-v) var(--ax-table-cell-h) !important;
+}
+
+// ── mat-form-field 정규화 ─────────────────────────────────────────────────────
+.mat-mdc-form-field {
+  font-size: var(--ax-font-size-md) !important;
+}
+
+.mat-mdc-form-field .mdc-text-field {
+  border-radius: var(--ax-radius-md) !important;
+}
+
+// date picker 네이티브 클릭 허용
+.mat-mdc-form-field .mdc-text-field__ripple,
+.mat-mdc-form-field .mat-mdc-form-field-focus-overlay,
+.mat-mdc-form-field label.mdc-floating-label {
+  pointer-events: none;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+// ── mat-button 기본 조정 ──────────────────────────────────────────────────────
+.mat-mdc-button,
+.mat-mdc-raised-button,
+.mat-mdc-outlined-button,
+.mat-mdc-unelevated-button {
+  border-radius: var(--ax-radius-md) !important;
+  font-weight: var(--ax-font-weight-medium) !important;
+  letter-spacing: 0 !important;
+  font-size: var(--ax-font-size-md) !important;
+}
+
+// ── mat-icon 기본 크기 ────────────────────────────────────────────────────────
+mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+// ── mat-badge 조정 ────────────────────────────────────────────────────────────
+.mat-badge-content {
+  font-size: 10px !important;
+  font-weight: var(--ax-font-weight-bold) !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+
+// ── mat-tab 정규화 ────────────────────────────────────────────────────────────
+.mat-mdc-tab {
+  font-size: var(--ax-font-size-md) !important;
+  font-weight: var(--ax-font-weight-medium) !important;
+}
+
+.mat-mdc-tab-labels {
+  border-bottom: 1px solid var(--ax-color-border-default);
+}
+
+// ── mat-progress-bar 조정 ─────────────────────────────────────────────────────
+.mat-mdc-progress-bar {
+  border-radius: var(--ax-radius-full) !important;
+}
+
+// ── mat-snack-bar 조정 ────────────────────────────────────────────────────────
+.mdc-snackbar__surface {
+  border-radius: var(--ax-radius-md) !important;
+}
+
+// ── mat-dialog 조정 ──────────────────────────────────────────────────────────
+.mat-mdc-dialog-container {
+  border-radius: var(--ax-radius-lg) !important;
+}
+
+.mat-mdc-dialog-title {
+  font-size: var(--ax-font-size-xl) !important;
+  font-weight: var(--ax-font-weight-semibold) !important;
+  color: var(--ax-color-text-primary) !important;
+}
+
+// ── mat-divider 색상 통일 ─────────────────────────────────────────────────────
+.mat-divider {
+  border-top-color: var(--ax-color-border-default) !important;
+}
+
+// ── mat-sidenav 그림자 제거 (직접 제어) ──────────────────────────────────────
+.mat-drawer {
+  box-shadow: none !important;
+}
+
+.mat-drawer-content {
+  background: var(--ax-color-bg-canvas) !important;
+}
+
+// ── ax-card 커스텀 카드 클래스 ────────────────────────────────────────────────
+// mat-card 없이 순수 div 카드가 필요할 때 사용
+.ax-card {
+  background: var(--ax-color-bg-surface);
+  border: 1px solid var(--ax-color-border-default);
+  border-radius: var(--ax-radius-lg);
+  box-shadow: var(--ax-shadow-sm);
+  padding: var(--ax-card-padding);
+  transition: box-shadow var(--ax-transition-base);
+
+  &:hover { box-shadow: var(--ax-shadow-md); }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ax-spacing-12);
+    padding-bottom: var(--ax-spacing-12);
+    border-bottom: 1px solid var(--ax-color-border-default);
+    margin-bottom: var(--ax-spacing-12);
+  }
+
+  &__title {
+    font-size: var(--ax-font-size-lg);
+    font-weight: var(--ax-font-weight-semibold);
+    color: var(--ax-color-text-primary);
+    margin: 0;
+  }
+
+  &__subtitle {
+    font-size: var(--ax-font-size-sm);
+    color: var(--ax-color-text-tertiary);
+    margin: var(--ax-spacing-2) 0 0;
+  }
+
+  &--accent-top {
+    border-top: 3px solid var(--ax-color-brand-primary);
+  }
+
+  &--accent-left {
+    border-left: 3px solid var(--ax-color-brand-primary);
+  }
+}
+
+// ── 필터 바 공통 컨테이너 ─────────────────────────────────────────────────────
+.ax-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ax-spacing-8);
+  background: var(--ax-color-bg-surface);
+  border: 1px solid var(--ax-color-border-default);
+  border-radius: var(--ax-radius-lg);
+  padding: var(--ax-spacing-8) var(--ax-spacing-12);
+  min-height: var(--ax-filter-bar-height);
+  flex-wrap: wrap;
+
+  .ax-filter-bar__search {
+    min-width: 200px;
+    max-width: 300px;
+    flex: 1;
+  }
+
+  .ax-filter-bar__filters {
+    display: flex;
+    align-items: center;
+    gap: var(--ax-spacing-8);
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .ax-filter-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ax-spacing-8);
+    margin-left: auto;
+  }
+}
+
+// ── 테이블 컨테이너 ───────────────────────────────────────────────────────────
+.ax-table-container {
+  background: var(--ax-color-bg-surface);
+  border: 1px solid var(--ax-color-border-default);
+  border-radius: var(--ax-radius-lg);
+  box-shadow: var(--ax-shadow-sm);
+  overflow: hidden;
+
+  .ax-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--ax-spacing-12) var(--ax-card-padding);
+    border-bottom: 1px solid var(--ax-color-border-default);
+  }
+
+  .ax-table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--ax-spacing-8) var(--ax-card-padding);
+    border-top: 1px solid var(--ax-color-border-default);
+    background: var(--ax-color-bg-surface-alt);
+  }
+}
+
+// ── AI 관련 공통 스타일 ────────────────────────────────────────────────────────
+.ax-ai-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ax-spacing-4);
+  padding: 2px 8px;
+  border-radius: var(--ax-radius-full);
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-semibold);
+  background: var(--ax-color-brand-primary-subtle);
+  color: var(--ax-color-brand-primary);
+  border: 1px solid var(--ax-color-brand-primary-muted);
+
+  mat-icon, .ax-ai-icon {
+    font-size: 12px;
+    width: 12px;
+    height: 12px;
+  }
+}
+
+.ax-confidence-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ax-spacing-8);
+
+  .ax-confidence-track {
+    flex: 1;
+    height: 6px;
+    background: var(--ax-color-border-default);
+    border-radius: var(--ax-radius-full);
+    overflow: hidden;
+  }
+
+  .ax-confidence-fill {
+    height: 100%;
+    border-radius: var(--ax-radius-full);
+    transition: width var(--ax-transition-slow);
+  }
+
+  .ax-confidence-label {
+    font-size: var(--ax-font-size-sm);
+    font-weight: var(--ax-font-weight-semibold);
+    min-width: 36px;
+    text-align: right;
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "idx-maintenance-rec-org-status",
+    "fields": ["docType", "orgId", "status", "createdAt"]
+  },
+  {
+    "name": "idx-maintenance-rec-complex-type",
+    "fields": ["docType", "orgId", "complexId", "maintenanceType", "status"]
+  },
+  {
+    "name": "idx-maintenance-rec-target",
+    "fields": ["docType", "orgId", "targetId", "createdAt"]
+  },
+  {
+    "name": "idx-maintenance-rec-risk-level",
+    "fields": ["docType", "orgId", "riskLevel", "status", "createdAt"]
+  }
+]

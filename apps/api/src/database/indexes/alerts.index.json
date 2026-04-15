@@ -1,0 +1,32 @@
+[
+  {
+    "name": "alerts-by-org-status-created",
+    "fields": ["docType", "orgId", "status", "createdAt"],
+    "ddoc": "idx-alert-org-status-created"
+  },
+  {
+    "name": "alerts-by-complex-status",
+    "fields": ["docType", "orgId", "complexId", "status"],
+    "ddoc": "idx-alert-complex-status"
+  },
+  {
+    "name": "alerts-by-type-status",
+    "fields": ["docType", "orgId", "alertType", "status"],
+    "ddoc": "idx-alert-type-status"
+  },
+  {
+    "name": "alerts-by-severity-status",
+    "fields": ["docType", "orgId", "severity", "status"],
+    "ddoc": "idx-alert-severity-status"
+  },
+  {
+    "name": "alerts-by-source-entity",
+    "fields": ["docType", "orgId", "alertType", "sourceEntityId", "status"],
+    "ddoc": "idx-alert-source-entity"
+  },
+  {
+    "name": "alerts-active-by-complex",
+    "fields": ["docType", "orgId", "status", "complexId", "severity"],
+    "ddoc": "idx-alert-active-complex-severity"
+  }
+]

@@ -1,0 +1,108 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AX 타이포그래피 시스템 — 위계별 공통 클래스
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 기본 폰트 설정 ────────────────────────────────────────────────────────────
+html, body {
+  font-family: var(--ax-font-family-base);
+  font-size: var(--ax-font-size-md);
+  font-weight: var(--ax-font-weight-regular);
+  line-height: var(--ax-line-height-normal);
+  color: var(--ax-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ── 앱 타이틀 (사이드바 상단) ──────────────────────────────────────────────────
+.ax-text-app-title {
+  font-size: 15px;
+  font-weight: var(--ax-font-weight-bold);
+  letter-spacing: var(--ax-letter-spacing-tight);
+  color: var(--ax-color-text-inverse);
+  line-height: var(--ax-line-height-tight);
+}
+
+// ── 페이지 제목 ───────────────────────────────────────────────────────────────
+.ax-text-page-title {
+  font-size: var(--ax-font-size-2xl);
+  font-weight: var(--ax-font-weight-bold);
+  letter-spacing: var(--ax-letter-spacing-tight);
+  color: var(--ax-color-text-primary);
+  line-height: var(--ax-line-height-tight);
+  margin: 0;
+}
+
+// ── 섹션 제목 ─────────────────────────────────────────────────────────────────
+.ax-text-section-title {
+  font-size: var(--ax-font-size-xl);
+  font-weight: var(--ax-font-weight-semibold);
+  color: var(--ax-color-text-primary);
+  line-height: var(--ax-line-height-tight);
+  margin: 0;
+}
+
+// ── 카드 제목 ─────────────────────────────────────────────────────────────────
+.ax-text-card-title {
+  font-size: var(--ax-font-size-lg);
+  font-weight: var(--ax-font-weight-semibold);
+  color: var(--ax-color-text-primary);
+  line-height: var(--ax-line-height-tight);
+  margin: 0;
+}
+
+// ── 테이블 헤더 ───────────────────────────────────────────────────────────────
+.ax-text-table-header {
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ax-letter-spacing-wider);
+  color: var(--ax-color-text-tertiary);
+}
+
+// ── 레이블 ────────────────────────────────────────────────────────────────────
+.ax-text-label {
+  font-size: var(--ax-font-size-sm);
+  font-weight: var(--ax-font-weight-medium);
+  color: var(--ax-color-text-secondary);
+  line-height: var(--ax-line-height-normal);
+}
+
+// ── 바디 (기본) ───────────────────────────────────────────────────────────────
+.ax-text-body {
+  font-size: var(--ax-font-size-md);
+  font-weight: var(--ax-font-weight-regular);
+  color: var(--ax-color-text-primary);
+  line-height: var(--ax-line-height-normal);
+}
+
+// ── 메타·캡션 ─────────────────────────────────────────────────────────────────
+.ax-text-meta {
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-regular);
+  color: var(--ax-color-text-tertiary);
+  line-height: var(--ax-line-height-normal);
+}
+
+// ── KPI 숫자 ──────────────────────────────────────────────────────────────────
+.ax-text-kpi {
+  font-size: var(--ax-font-size-kpi);
+  font-weight: var(--ax-font-weight-bold);
+  letter-spacing: var(--ax-letter-spacing-tight);
+  line-height: var(--ax-line-height-tight);
+}
+
+// ── KPI 단위 ──────────────────────────────────────────────────────────────────
+.ax-text-unit {
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-regular);
+  color: var(--ax-color-text-tertiary);
+}
+
+// ── 섹션 구분 레이블 (대문자 소형) ───────────────────────────────────────────
+.ax-text-section-label {
+  font-size: var(--ax-font-size-xs);
+  font-weight: var(--ax-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ax-letter-spacing-wider);
+  color: var(--ax-color-text-tertiary);
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "index": { "fields": ["docType", "orgId", "ruleId", "startedAt"] },
+    "name": "automation-executions-by-rule",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "status", "startedAt"] },
+    "name": "automation-executions-by-status",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "triggerType", "startedAt"] },
+    "name": "automation-executions-by-trigger",
+    "type": "json"
+  },
+  {
+    "index": { "fields": ["docType", "orgId", "startedAt"] },
+    "name": "automation-executions-by-date",
+    "type": "json"
+  }
+]
