@@ -293,6 +293,7 @@ export interface GenerateReportRequest {
     isPublic?: boolean;
 }
 export interface DashboardResponse {
+    totalComplexes: number;
     criticalDefects: number;
     highDefects: number;
     unrepairedDefects: number;

@@ -31,6 +31,7 @@
     "seed:ai": "yarn workspace @ax/api ts-node src/database/seeds/ai-performance.seed.ts",
     "docker:up": "docker compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f docker-compose.dev.yml down",
+    "docker:reset": "docker compose -f docker-compose.dev.yml down && rm -rf .data",
     "lint": "eslint \"apps/**/*.ts\" \"packages/**/*.ts\" --fix",
     "watch:cracks": "node scripts/watch-crack-images.js"
   },

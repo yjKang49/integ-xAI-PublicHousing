@@ -18,7 +18,8 @@ services:
       COUCHDB_USER: admin
       COUCHDB_PASSWORD: secret
     volumes:
-      - couchdb-data:/opt/couchdb/data
+      # bind mount: 데이터가 .data/ 폴더에 저장되어 docker volume prune 영향 없음
+      - ./.data/couchdb:/opt/couchdb/data
       - ./infra/couchdb:/opt/couchdb/etc/local.d
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:5984/_up']
@@ -33,7 +34,7 @@ services:
       - '6379:6379'
     command: redis-server --appendonly yes
     volumes:
-      - redis-data:/data
+      - ./.data/redis:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -50,7 +51,7 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9001"
     volumes:
-      - minio-data:/data
+      - ./.data/minio:/data
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
@@ -80,7 +81,6 @@ services:
         echo 'MinIO buckets ready (ax-media, ax-reports)'
       "
 
-volumes:
-  couchdb-data:
-  redis-data:
-  minio-data:
+# bind mount 방식으로 변경했으므로 named volume 섹션 불필요
+# 데이터는 .data/ 폴더에 저장됨 (docker volume prune 영향 없음)
+# 초기화가 필요할 때만: yarn docker:reset

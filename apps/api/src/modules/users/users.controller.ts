@@ -23,11 +23,11 @@ export class UsersController {
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.INSPECTOR, UserRole.REVIEWER)
   @ApiQuery({ name: 'organizationId', required: false })
   @ApiOperation({ summary: '사용자 목록' })
   findAll(@Query('organizationId') organizationId: string, @CurrentUser() user: any) {
-    // ORG_ADMIN은 자신의 org 사용자만 조회
+    // SUPER_ADMIN만 다른 org 조회 가능, 나머지는 자신의 org로 강제
     const orgFilter = user.role === UserRole.SUPER_ADMIN
       ? organizationId
       : user.organizationId ?? user.orgId;

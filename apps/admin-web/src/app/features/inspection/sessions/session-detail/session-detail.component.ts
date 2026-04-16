@@ -7,14 +7,20 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule } from '@angular/material/tabs';
 import { InspectionSession, Defect } from '@ax/shared';
+import { UsersApiService } from '../../../../core/api/users.service';
+import { BuildingsService } from '../../../../core/api/buildings.service';
+import { AuthStore } from '../../../../core/store/auth.store';
 import { environment } from '../../../../../environments/environment';
 
 const STATUS_LABELS: Record<string, string> = {
+  DRAFT: '초안', ASSIGNED: '배정됨',
   PLANNED: '계획됨', IN_PROGRESS: '진행 중', PENDING_REVIEW: '검토 대기',
-  REVIEWED: '검토 완료', COMPLETED: '완료', CANCELLED: '취소됨',
+  REVIEWED: '검토 완료', SUBMITTED: '제출됨', APPROVED: '승인됨', COMPLETED: '완료', CANCELLED: '취소됨',
 };
 
 const CHECKLIST_RESULT_LABELS: Record<string, string> = {
@@ -35,8 +41,8 @@ const SEVERITY_LABELS: Record<string, string> = {
   imports: [
     CommonModule, RouterLink,
     MatTableModule, MatButtonModule, MatIconModule,
-    MatTooltipModule, MatProgressBarModule,
-    MatDividerModule, MatTabsModule,
+    MatTooltipModule, MatProgressBarModule, MatProgressSpinnerModule,
+    MatDividerModule, MatTabsModule, MatSnackBarModule,
   ],
   template: `
     @if (loading() && !session()) {
@@ -56,6 +62,20 @@ const SEVERITY_LABELS: Record<string, string> = {
         <span class="ax-insp-status ax-insp-status--{{ session()!.status.toLowerCase() }}">
           {{ statusLabel(session()!.status) }}
         </span>
+        @if (session()!.status === 'ASSIGNED') {
+          <button mat-raised-button color="primary" (click)="updateStatus('IN_PROGRESS')" [disabled]="submitting()">
+            @if (submitting()) { <mat-spinner diameter="18" style="display:inline-block;margin-right:4px" /> }
+            @else { <mat-icon>play_arrow</mat-icon> }
+            점검 시작
+          </button>
+        }
+        @if (session()!.status === 'IN_PROGRESS') {
+          <button mat-raised-button color="accent" (click)="updateStatus('SUBMITTED')" [disabled]="submitting()">
+            @if (submitting()) { <mat-spinner diameter="18" style="display:inline-block;margin-right:4px" /> }
+            @else { <mat-icon>task_alt</mat-icon> }
+            점검 완료 제출
+          </button>
+        }
       </div>
 
       <!-- 세션 정보 + 현황 -->
@@ -70,11 +90,11 @@ const SEVERITY_LABELS: Record<string, string> = {
           <div class="ax-insp-panel__body">
             <div class="ax-insp-info-row">
               <span class="ax-insp-info-lbl">점검자</span>
-              <span>{{ session()!.inspectorId }}</span>
+              <span>{{ userName(session()!.inspectorId) }}</span>
             </div>
             <div class="ax-insp-info-row">
               <span class="ax-insp-info-lbl">대상 건물</span>
-              <span>{{ session()!.buildingId }}</span>
+              <span>{{ buildingName(session()!.buildingId) }}</span>
             </div>
             @if (session()!.floorId) {
               <div class="ax-insp-info-row">
@@ -262,10 +282,14 @@ const SEVERITY_LABELS: Record<string, string> = {
       font-size: var(--ax-font-size-xs); font-weight: var(--ax-font-weight-semibold);
       white-space: nowrap;
     }
+    .ax-insp-status--draft          { background: #f5f5f5;                        color: #757575; }
+    .ax-insp-status--assigned       { background: #e3f2fd;                        color: #1565c0; }
     .ax-insp-status--planned        { background: var(--ax-color-info-subtle);    color: var(--ax-color-info); }
     .ax-insp-status--in_progress    { background: var(--ax-color-warning-subtle); color: var(--ax-color-warning); }
     .ax-insp-status--pending_review { background: #f3e5f5; color: #6a1b9a; }
     .ax-insp-status--reviewed       { background: var(--ax-color-success-subtle); color: var(--ax-color-success); }
+    .ax-insp-status--submitted      { background: #e8eaf6;                        color: #3949ab; }
+    .ax-insp-status--approved       { background: var(--ax-color-success-subtle); color: var(--ax-color-success); }
     .ax-insp-status--completed      { background: var(--ax-color-bg-surface-alt); color: var(--ax-color-text-secondary); }
     .ax-insp-status--cancelled      { background: var(--ax-color-bg-surface-alt); color: var(--ax-color-text-tertiary); }
 
@@ -385,13 +409,21 @@ const SEVERITY_LABELS: Record<string, string> = {
   `],
 })
 export class SessionDetailComponent implements OnInit {
-  private readonly http  = inject(HttpClient);
-  private readonly route = inject(ActivatedRoute);
+  private readonly http       = inject(HttpClient);
+  private readonly route      = inject(ActivatedRoute);
+  private readonly usersSvc   = inject(UsersApiService);
+  private readonly buildSvc   = inject(BuildingsService);
+  private readonly authStore  = inject(AuthStore);
+  private readonly snackBar   = inject(MatSnackBar);
 
   readonly session        = signal<InspectionSession | null>(null);
   readonly defects        = signal<Defect[]>([]);
   readonly loading        = signal(true);
   readonly defectsLoading = signal(false);
+  readonly submitting     = signal(false);
+
+  private readonly userMap     = signal<Map<string, string>>(new Map());
+  private readonly buildingMap = signal<Map<string, string>>(new Map());
 
   defectColumns = ['severity', 'defectType', 'location', 'repaired', 'actions'];
 
@@ -401,11 +433,27 @@ export class SessionDetailComponent implements OnInit {
 
   ngOnInit() {
     const sessionId = this.route.snapshot.paramMap.get('sessionId')!;
+    const orgId = this.authStore.user()?.organizationId ?? '';
+
+    // 사용자 맵 로드
+    this.usersSvc.list(orgId).subscribe({
+      next: (list) => this.userMap.set(new Map(list.map((u) => [u._id, u.name]))),
+      error: () => { /* 권한 없을 경우 조용히 무시 */ },
+    });
+
     this.http.get<any>(`${environment.apiUrl}/projects/sessions/${encodeURIComponent(sessionId)}`).subscribe({
       next: (res) => {
-        this.session.set(res.data ?? res);
+        const sess: InspectionSession = res.data ?? res;
+        this.session.set(sess);
         this.loading.set(false);
         this.loadDefects(sessionId);
+
+        // 건물 맵 로드 (complexId 기반)
+        if (sess.complexId) {
+          this.buildSvc.listByComplex(sess.complexId).subscribe((list) => {
+            this.buildingMap.set(new Map(list.map((b) => [b._id, b.name])));
+          });
+        }
       },
       error: () => this.loading.set(false),
     });
@@ -419,8 +467,41 @@ export class SessionDetailComponent implements OnInit {
     });
   }
 
+  userName(id: string | undefined): string {
+    if (!id) return '미배정';
+    return this.userMap().get(id) ?? '미배정';
+  }
+
+  buildingName(id: string | undefined): string {
+    if (!id) return '-';
+    return this.buildingMap().get(id) ?? id;
+  }
+
   statusLabel(s: string)           { return STATUS_LABELS[s] ?? s; }
   severityLabel(s: string)         { return SEVERITY_LABELS[s] ?? s; }
   checklistResultLabel(r: string)  { return (CHECKLIST_RESULT_LABELS[r] ?? r) || '미입력'; }
   checklistResultIcon(r: string)   { return CHECKLIST_RESULT_ICONS[r] ?? 'help'; }
+
+  updateStatus(newStatus: string) {
+    const sess = this.session();
+    if (!sess) return;
+    this.submitting.set(true);
+    const sessionId = this.route.snapshot.paramMap.get('sessionId')!;
+    this.http.patch<any>(
+      `${environment.apiUrl}/projects/sessions/${encodeURIComponent(sessionId)}/status`,
+      { status: newStatus },
+    ).subscribe({
+      next: (res) => {
+        const updated: Partial<InspectionSession> = res.data ?? res;
+        this.session.set({ ...sess, ...updated });
+        this.submitting.set(false);
+        this.snackBar.open('세션 상태가 변경되었습니다.', '닫기', { duration: 2000 });
+      },
+      error: (err) => {
+        this.submitting.set(false);
+        const msg = err?.error?.message ?? '상태 변경에 실패했습니다.';
+        this.snackBar.open(msg, '닫기', { duration: 3000 });
+      },
+    });
+  }
 }

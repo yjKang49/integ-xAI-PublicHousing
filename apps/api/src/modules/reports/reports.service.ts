@@ -83,10 +83,23 @@ export class ReportsService {
 
   async findAll(orgId: string, query: any) {
     const selector: Record<string, any> = { docType: 'report', orgId };
-    if (query.complexId) selector.complexId = query.complexId;
+    if (query.complexId)  selector.complexId  = query.complexId;
     if (query.reportType) selector.reportType = query.reportType;
     if (query.projectId)  selector.projectId  = query.projectId;
-    if (query.publicOnly) selector.isPublic = true;
+    if (query.publicOnly) selector.isPublic   = true;
+
+    // 날짜 범위 필터 (generatedAt은 ISO 문자열 → 사전순 비교 가능)
+    if (query.dateFrom || query.dateTo) {
+      selector.generatedAt = {};
+      if (query.dateFrom) selector.generatedAt['$gte'] = query.dateFrom + 'T00:00:00.000Z';
+      if (query.dateTo)   selector.generatedAt['$lte'] = query.dateTo   + 'T23:59:59.999Z';
+    }
+
+    // 제목 검색 (대소문자 무시 정규식)
+    if (query.search) {
+      const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      selector.title = { '$regex': `(?i)${escaped}` };
+    }
 
     const page  = query.page  ? +query.page  : 1;
     const limit = Math.min(query.limit ? +query.limit : 20, 100);

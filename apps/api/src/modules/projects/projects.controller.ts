@@ -8,7 +8,7 @@ import { UserRole } from '@ax/shared';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateProjectStatusDto } from './dto/update-project.dto';
+import { UpdateProjectStatusDto, UpdateProjectAssignmentDto } from './dto/update-project.dto';
 import { UpdateSessionStatusDto } from './dto/update-session.dto';
 import { CurrentUserDto } from '../../common/interfaces/current-user.interface';
 
@@ -54,6 +54,17 @@ export class ProjectsController {
     return this.svc.findProjectById(user.organizationId, id);
   }
 
+  @Patch(':id/assignment')
+  @Roles(UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: '프로젝트 담당자 변경 (책임 점검자/검토자)' })
+  updateAssignment(
+    @Param('id') id: string,
+    @Body() dto: UpdateProjectAssignmentDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return this.svc.updateProjectAssignment(user.organizationId, id, dto, user._id);
+  }
+
   @Patch(':id/status')
   @Roles(UserRole.ORG_ADMIN, UserRole.REVIEWER, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: '프로젝트 상태 변경' })
@@ -85,6 +96,12 @@ export class ProjectsController {
     @CurrentUser() user: CurrentUserDto,
   ) {
     return this.svc.findSessionsByProject(user.organizationId, projectId);
+  }
+
+  @Get('sessions/mine')
+  @ApiOperation({ summary: '내 점검 세션 목록 (현재 로그인 사용자 기준)' })
+  getMySessions(@CurrentUser() user: CurrentUserDto) {
+    return this.svc.findSessionsByInspector(user.organizationId, user._id);
   }
 
   @Get('sessions/:sessionId')

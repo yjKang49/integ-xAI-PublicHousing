@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -12,7 +12,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
-import { Organization } from '@ax/shared';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { Organization, UserRole } from '@ax/shared';
+import { AuthStore } from '../../../../core/store/auth.store';
 import { environment } from '../../../../../environments/environment';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -29,13 +31,18 @@ const PLAN_LABELS: Record<string, string> = {
     CommonModule, ReactiveFormsModule,
     MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule,
     MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    MatSnackBarModule, MatDividerModule, MatChipsModule,
+    MatSnackBarModule, MatDividerModule, MatChipsModule, MatTooltipModule,
   ],
   template: `
     <div class="page-header">
       <h2>기관 설정</h2>
       @if (org()) {
         <span class="plan-badge plan-{{ org()!.plan.toLowerCase() }}">{{ planLabel(org()!.plan) }}</span>
+      }
+      @if (!isSuperAdmin()) {
+        <span class="read-only-badge" matTooltip="기관 기본·담당자 정보는 수정 가능합니다. 플랜·계약 정보는 슈퍼 관리자만 변경할 수 있습니다.">
+          <mat-icon>info_outline</mat-icon> 플랜/계약 읽기 전용
+        </span>
       }
     </div>
 
@@ -108,6 +115,9 @@ const PLAN_LABELS: Record<string, string> = {
           <mat-card-header>
             <mat-icon mat-card-avatar>workspace_premium</mat-icon>
             <mat-card-title>플랜 및 계약</mat-card-title>
+            @if (!isSuperAdmin()) {
+              <mat-card-subtitle style="color:#e65100">슈퍼 관리자만 수정 가능합니다.</mat-card-subtitle>
+            }
           </mat-card-header>
           <mat-divider />
           <mat-card-content class="form-grid">
@@ -151,6 +161,12 @@ const PLAN_LABELS: Record<string, string> = {
   styles: [`
     .page-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
     .page-header h2 { margin:0; font-size:22px; font-weight:600; flex:1; }
+    .read-only-badge {
+      display:inline-flex; align-items:center; gap:4px;
+      padding:3px 10px; border-radius:12px; font-size:11px; font-weight:500;
+      background:#fff8e1; color:#e65100; cursor:default;
+      mat-icon { font-size:14px; width:14px; height:14px; }
+    }
     .plan-badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:600; }
     .plan-free       { background:#f5f5f5; color:#616161; }
     .plan-starter    { background:#e3f2fd; color:#1565c0; }
@@ -167,10 +183,13 @@ export class OrgSettingsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly authStore = inject(AuthStore);
 
   readonly org = signal<Organization | null>(null);
   readonly loading = signal(true);
   readonly submitting = signal(false);
+
+  readonly isSuperAdmin = computed(() => this.authStore.user()?.role === UserRole.SUPER_ADMIN);
 
   readonly planItems = Object.entries(PLAN_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -202,6 +221,12 @@ export class OrgSettingsComponent implements OnInit {
           contractStartDate: o.contractStartDate?.slice(0, 10) ?? '',
           contractEndDate:   o.contractEndDate?.slice(0, 10) ?? '',
         });
+        // 플랜·계약 필드는 SUPER_ADMIN만 수정 가능
+        if (!this.isSuperAdmin()) {
+          this.form.get('plan')?.disable();
+          this.form.get('contractStartDate')?.disable();
+          this.form.get('contractEndDate')?.disable();
+        }
         this.loading.set(false);
       },
       error: () => this.loading.set(false),

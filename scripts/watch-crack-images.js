@@ -2,6 +2,10 @@
 // scripts/watch-crack-images.js
 // data/ 하위 모든 디렉토리를 감시 — 각 디렉토리별로 독립적인 순번 유지
 // 새 하위 디렉토리가 생겨도 자동으로 감시 추가
+// 실행방법
+//   yarn watch:cracks
+//   실행하면 data/ 하위 디렉토리를 모두 감시하고, JPG를 붙여넣을 때마다 0001.jpg, 0002.jpg, ... 순번으로 자동 변경됩니다.
+//   종료는 Ctrl+C.
 
 const fs   = require('fs');
 const path = require('path');

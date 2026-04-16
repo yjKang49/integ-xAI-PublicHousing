@@ -1,6 +1,6 @@
 // apps/admin-web/src/app/features/dashboard/pages/dashboard-page.component.ts
 // 대시보드 메인 페이지 — 차트/리스트 중심 운영 콘솔로 재구성 (API/로직 완전 유지)
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
@@ -9,7 +9,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { DashboardResponse } from '@ax/shared';
+import { DashboardResponse, UserRole, InspectionSession } from '@ax/shared';
+import { AuthStore } from '../../../core/store/auth.store';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -136,6 +137,49 @@ import { environment } from '../../../../environments/environment';
         />
       }
 
+      <!-- ── INSPECTOR/REVIEWER 전용: 내 점검 일정 ── -->
+      @if (isInspector()) {
+        <div class="db-my-sessions" role="region" aria-label="내 점검 일정">
+          <div class="db-panel__head">
+            <mat-icon style="color: var(--ax-color-brand-primary)" aria-hidden="true">assignment_ind</mat-icon>
+            <h2 class="db-panel__title">내 점검 일정</h2>
+            <a class="db-panel__link" routerLink="/inspection/projects" aria-label="전체 점검 보기">
+              전체 보기 <mat-icon aria-hidden="true">chevron_right</mat-icon>
+            </a>
+          </div>
+          @if (mySessionsLoading()) {
+            <div class="db-my-sessions__loading">
+              <mat-spinner diameter="24" />
+            </div>
+          } @else if (mySessions().length === 0) {
+            <div class="db-my-sessions__empty">
+              <mat-icon aria-hidden="true">event_available</mat-icon>
+              <p>배정된 점검 세션이 없습니다.</p>
+            </div>
+          } @else {
+            <ul class="db-dense-list" role="list">
+              @for (s of mySessions(); track s._id) {
+                <li>
+                  <a class="db-dense-row"
+                     [routerLink]="['/inspection/projects', s.projectId, 'sessions', s._id]"
+                     [attr.aria-label]="sessionStatusLabel(s.status)">
+                    <mat-icon class="db-dense-row__icon"
+                      [style.color]="sessionStatusColor(s.status)" aria-hidden="true">
+                      {{ sessionStatusIcon(s.status) }}
+                    </mat-icon>
+                    <span class="db-dense-row__title">{{ s.buildingId.split(':').pop() }}</span>
+                    <span class="db-my-sessions__status db-my-sessions__status--{{ s.status.toLowerCase() }}">
+                      {{ sessionStatusLabel(s.status) }}
+                    </span>
+                    <time class="db-dense-row__time">{{ s.createdAt | date:'MM/dd' }}</time>
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
       @if (data(); as d) {
 
         <!-- ════════════════════════════════════════════════════════════ -->
@@ -205,6 +249,10 @@ import { environment } from '../../../../environments/environment';
 
           <!-- 보조 지표 (우측 고정 패널) -->
           <div class="db-strip__metrics" aria-label="보조 운영 지표">
+            <div class="db-strip__metric">
+              <span class="db-strip__metric-lbl">단지 수</span>
+              <span class="db-strip__metric-val">{{ d.totalComplexes }}<em>개</em></span>
+            </div>
             <div class="db-strip__metric">
               <span class="db-strip__metric-lbl">대기 민원</span>
               <span class="db-strip__metric-val">{{ d.pendingComplaints }}<em>건</em></span>
@@ -1182,16 +1230,55 @@ import { environment } from '../../../../environments/environment';
       font-variant-numeric: tabular-nums;
       flex-shrink: 0;
     }
+
+    /* ════════════════════════════════════════════════════════════════ */
+    /* 내 점검 일정 (INSPECTOR/REVIEWER)                                 */
+    /* ════════════════════════════════════════════════════════════════ */
+    .db-my-sessions {
+      background: var(--ax-color-bg-surface);
+      border: 1px solid var(--ax-color-border);
+      border-radius: var(--ax-radius-lg);
+      overflow: hidden;
+      margin-bottom: var(--ax-spacing-4, 16px);
+    }
+    .db-my-sessions__loading {
+      display: flex; justify-content: center; padding: 24px;
+    }
+    .db-my-sessions__empty {
+      text-align: center; padding: 24px;
+      color: var(--ax-color-text-tertiary); font-size: var(--ax-font-size-sm);
+    }
+    .db-my-sessions__empty mat-icon {
+      font-size: 36px; width: 36px; height: 36px; display: block; margin: 0 auto 8px;
+    }
+    .db-my-sessions__empty p { margin: 0; }
+    .db-my-sessions__status {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .db-my-sessions__status--draft       { background: #f5f5f5; color: #757575; }
+    .db-my-sessions__status--assigned    { background: #e3f2fd; color: #1565c0; }
+    .db-my-sessions__status--in_progress { background: #fff8e1; color: #e65100; }
+    .db-my-sessions__status--submitted   { background: #e8eaf6; color: #3949ab; }
+    .db-my-sessions__status--approved    { background: #e8f5e9; color: #2e7d32; }
   `],
 })
 export class DashboardPageComponent implements OnInit, OnDestroy {
-  private readonly http     = inject(HttpClient);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly http      = inject(HttpClient);
+  private readonly snackBar  = inject(MatSnackBar);
+  private readonly authStore = inject(AuthStore);
 
-  readonly loading     = signal(true);
-  readonly loadError   = signal(false);
-  readonly data        = signal<DashboardResponse | null>(null);
-  readonly lastUpdated = signal<Date>(new Date());
+  readonly loading           = signal(true);
+  readonly loadError         = signal(false);
+  readonly data              = signal<DashboardResponse | null>(null);
+  readonly lastUpdated       = signal<Date>(new Date());
+  readonly mySessions        = signal<InspectionSession[]>([]);
+  readonly mySessionsLoading = signal(false);
+
+  readonly isInspector = computed(() => {
+    const role = this.authStore.user()?.role;
+    return role === UserRole.INSPECTOR || role === UserRole.REVIEWER;
+  });
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -1201,6 +1288,15 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.load();
     this.refreshTimer = setInterval(() => this.load(), 60_000);
+    if (this.isInspector()) this.loadMySessions();
+  }
+
+  loadMySessions() {
+    this.mySessionsLoading.set(true);
+    this.http.get<any>(`${environment.apiUrl}/projects/sessions/mine`).subscribe({
+      next: (res) => { this.mySessions.set(res.data ?? res ?? []); this.mySessionsLoading.set(false); },
+      error: () => this.mySessionsLoading.set(false),
+    });
   }
 
   ngOnDestroy() {
@@ -1321,5 +1417,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       DEFORMATION: 'deform', SETTLEMENT: 'settle', OTHER: 'other',
     };
     return m[type] ?? 'other';
+  }
+
+  // ── 세션 상태 헬퍼 (내 점검 일정용) ─────────────────────────────────────
+  sessionStatusLabel(s: string): string {
+    return { DRAFT: '초안', ASSIGNED: '배정됨', IN_PROGRESS: '진행 중', SUBMITTED: '제출됨', APPROVED: '승인됨' }[s] ?? s;
+  }
+
+  sessionStatusColor(s: string): string {
+    return { DRAFT: '#757575', ASSIGNED: '#1565c0', IN_PROGRESS: '#e65100', SUBMITTED: '#3949ab', APPROVED: '#2e7d32' }[s]
+      ?? 'var(--ax-color-text-secondary)';
+  }
+
+  sessionStatusIcon(s: string): string {
+    return { DRAFT: 'edit_note', ASSIGNED: 'assignment', IN_PROGRESS: 'directions_run', SUBMITTED: 'pending_actions', APPROVED: 'task_alt' }[s]
+      ?? 'assignment';
   }
 }

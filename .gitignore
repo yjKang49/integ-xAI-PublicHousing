@@ -22,6 +22,9 @@ ios/
 # Docker
 *.tar
 
+# Local dev data (CouchDB, Redis, MinIO bind mounts — yarn docker:up으로 생성)
+.data/
+
 # Editors
 .vscode/settings.json
 .idea/

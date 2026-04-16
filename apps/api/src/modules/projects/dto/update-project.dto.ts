@@ -10,3 +10,8 @@ export class UpdateProjectStatusDto {
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
+
+export class UpdateProjectAssignmentDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() leadInspectorId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() reviewerId?: string;
+}

@@ -438,8 +438,12 @@ export class SidebarComponent {
           roles: [UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN],
         },
         {
-          label: '설정',       icon: 'settings',       route: '/settings',
-          roles: [UserRole.ORG_ADMIN],
+          label: '사용자 관리', icon: 'manage_accounts', route: '/settings/users',
+          roles: [UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN],
+        },
+        {
+          label: '기관 설정',  icon: 'business',        route: '/settings/organization',
+          roles: [UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN],
         },
       ],
     },

@@ -460,7 +460,7 @@ export const routes: Routes = [
       {
         path: 'settings',
         title: '설정',
-        canActivate: [roleGuard([UserRole.ORG_ADMIN])],
+        canActivate: [roleGuard([UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN])],
         children: [
           {
             path: 'users',

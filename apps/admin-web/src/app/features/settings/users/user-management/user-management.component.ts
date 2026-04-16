@@ -59,8 +59,9 @@ const ROLE_VARIANT: Record<string, BadgeVariant> = {
         @if (!data.user) {
           <mat-form-field appearance="outline" class="full">
             <mat-label>초기 비밀번호 *</mat-label>
-            <input matInput type="password" formControlName="password" />
-            <mat-hint>8자 이상</mat-hint>
+            <input matInput type="password" formControlName="password"
+              placeholder="영문·숫자 조합 8자 이상 입력" />
+            <mat-hint>영문, 숫자를 포함하여 8자 이상으로 설정하세요.</mat-hint>
           </mat-form-field>
         }
 

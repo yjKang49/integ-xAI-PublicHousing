@@ -7,7 +7,7 @@ import {
 } from '@ax/shared';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateProjectStatusDto } from './dto/update-project.dto';
+import { UpdateProjectStatusDto, UpdateProjectAssignmentDto } from './dto/update-project.dto';
 import { UpdateSessionStatusDto } from './dto/update-session.dto';
 
 const PLATFORM_DB = '_platform';
@@ -119,6 +119,22 @@ export class ProjectsService {
     });
   }
 
+  async updateProjectAssignment(
+    orgId: string,
+    id: string,
+    dto: UpdateProjectAssignmentDto,
+    userId: string,
+  ): Promise<InspectionProject> {
+    const project = await this.findProjectById(orgId, id);
+    return this.couch.update(orgId, {
+      ...project,
+      ...(dto.leadInspectorId !== undefined && { leadInspectorId: dto.leadInspectorId }),
+      ...(dto.reviewerId !== undefined && { reviewerId: dto.reviewerId }),
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+    });
+  }
+
   // ── Sessions ──────────────────────────────────────────────────────────────
 
   async createSession(
@@ -186,6 +202,15 @@ export class ProjectsService {
       orgId,
       { docType: 'inspectionSession', orgId, projectId },
       { sort: [{ createdAt: 'asc' }] },
+    );
+    return docs;
+  }
+
+  async findSessionsByInspector(orgId: string, inspectorId: string): Promise<InspectionSession[]> {
+    const { docs } = await this.couch.find<InspectionSession>(
+      orgId,
+      { docType: 'inspectionSession', orgId, inspectorId },
+      { sort: [{ createdAt: 'desc' }], limit: 50 },
     );
     return docs;
   }

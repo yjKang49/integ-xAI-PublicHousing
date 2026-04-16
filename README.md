@@ -531,6 +531,33 @@ docker compose up -d --build
 docker compose --profile phase2 up -d --build
 ```
 
+### 로컬 데이터 저장 위치 및 유지 방법
+
+개발 인프라(`docker-compose.dev.yml`)는 **bind mount** 방식으로 데이터를 호스트 폴더에 저장합니다.  
+`docker compose down` 또는 `yarn docker:down` 후에도 데이터가 사라지지 않습니다.
+
+| 서비스 | 데이터 저장 경로 |
+|--------|----------------|
+| CouchDB | `.data/couchdb/` |
+| Redis | `.data/redis/` |
+| MinIO | `.data/minio/` |
+
+> `.data/` 폴더는 `.gitignore`에 등록되어 있어 커밋되지 않습니다.
+
+```bash
+# 인프라 중지 — .data/ 폴더 유지 (데이터 보존)
+yarn docker:down
+
+# 인프라 재기동 — 기존 데이터 그대로 이어서 사용
+yarn docker:up
+
+# 데이터 완전 초기화 (주의: .data/ 폴더 삭제 후 fresh start)
+yarn docker:reset
+```
+
+> **`yarn docker:reset` 주의사항:** CouchDB, Redis, MinIO의 **모든 데이터가 영구 삭제**됩니다.  
+> 리셋 후에는 반드시 `yarn workspace @ax/api seed:master`로 기초 데이터를 재투입하세요.
+
 ### 트러블슈팅
 
 | 증상 | 원인 | 해결 방법 |
@@ -541,6 +568,7 @@ docker compose --profile phase2 up -d --build
 | 보고서 생성 실패 — 템플릿 없음 | Handlebars 경로 문제 | `docs/known-issues.md` KI-001 참조 |
 | E2E 테스트 `429 Too Many Requests` | ThrottlerGuard 제한 | `docs/known-issues.md` KI-006 참조 |
 | Windows에서 bash 스크립트 오류 | Unix 쉘 불일치 | Git Bash 또는 WSL 2 사용 |
+| `.data/couchdb` 권한 오류 | 컨테이너 내부 UID 불일치 | `yarn docker:reset` 후 재기동 |
 
 ---
 

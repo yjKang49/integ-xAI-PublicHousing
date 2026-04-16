@@ -27,6 +27,11 @@ export class DashboardService {
   private async computeDashboard(orgId: string, complexId?: string): Promise<DashboardResponse> {
     const baseFilter = complexId ? { complexId } : {};
 
+    // --- Complexes ---
+    const { docs: complexes } = await this.couch.find(orgId, {
+      docType: 'complex', orgId,
+    }, { limit: 0 });
+
     // --- Defect counts ---
     const { docs: criticalDefects } = await this.couch.find(orgId, {
       docType: 'defect', orgId, ...baseFilter, severity: 'CRITICAL', isRepaired: false,
@@ -149,6 +154,7 @@ export class DashboardService {
     const preventiveMaintenanceSavingsEstimate = earlyFoundDefects * 1_400_000;
 
     return {
+      totalComplexes: complexes.length,
       criticalDefects: criticalDefects.length,
       highDefects: highDefects.length,
       unrepairedDefects: unrepairedDefects.length,

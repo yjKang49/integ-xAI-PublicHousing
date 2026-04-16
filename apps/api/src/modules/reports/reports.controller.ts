@@ -27,6 +27,10 @@ class ReportQueryDto {
   @IsOptional() @IsString() publicOnly?: string;
   @IsOptional() @IsString() page?: string;
   @IsOptional() @IsString() limit?: string;
+  @IsOptional() @IsString() dateFrom?: string;   // YYYY-MM-DD
+  @IsOptional() @IsString() dateTo?: string;     // YYYY-MM-DD
+  @IsOptional() @IsString() search?: string;     // 제목 부분 검색
+  @IsOptional() @IsString() status?: string;     // 상태 필터 (미래 확장용)
 }
 
 @ApiTags('Reports')

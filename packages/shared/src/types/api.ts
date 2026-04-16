@@ -389,6 +389,9 @@ export interface GenerateReportRequest {
 // ──────────────────────────────────────────────
 
 export interface DashboardResponse {
+  // Complex summary
+  totalComplexes: number;
+
   // Risk summary
   criticalDefects: number;
   highDefects: number;
