@@ -139,6 +139,72 @@ export class MediaService {
     return { url, expiresIn: DOWNLOAD_URL_EXPIRY };
   }
 
+  /**
+   * Direct upload from admin web — receives file buffer, uploads to S3,
+   * creates CouchDB doc, returns media with pre-signed download URL.
+   */
+  async uploadDirect(
+    orgId: string,
+    dto: { entityType: string; entityId: string; complexId: string; capturedAt?: string },
+    file: Express.Multer.File,
+    userId: string,
+  ): Promise<DefectMedia & { url: string }> {
+    const mediaId = `defectMedia:${orgId}:img_${Date.now()}_${uuid().slice(0, 8)}`;
+    const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase();
+    const storageKey = `${dto.complexId}/${dto.entityType}/${dto.entityId}/${Date.now()}_${uuid().slice(0, 8)}.${ext}`;
+
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: storageKey,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }));
+
+    const now = new Date().toISOString();
+    const doc: DefectMedia = {
+      _id: mediaId,
+      docType: 'defectMedia',
+      orgId,
+      defectId: dto.entityType === 'inspectionSession' ? '' : dto.entityId,
+      sessionId: dto.entityType === 'inspectionSession' ? dto.entityId : '',
+      complexId: dto.complexId,
+      mediaType: MediaType.PHOTO,
+      fileName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+      storageKey,
+      capturedAt: dto.capturedAt ?? now,
+      capturedBy: userId,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userId,
+      updatedBy: userId,
+    };
+    await this.couch.create(orgId, doc);
+
+    const url = await this.getDownloadUrl(storageKey);
+    return { ...doc, url };
+  }
+
+  /**
+   * List all media for a session, with pre-signed download URLs.
+   */
+  async listBySession(orgId: string, sessionId: string): Promise<(DefectMedia & { url: string })[]> {
+    const { docs } = await this.couch.find<DefectMedia>(
+      orgId,
+      { docType: 'defectMedia', sessionId },
+      { sort: [{ capturedAt: 'asc' }], limit: 100 },
+    );
+    return Promise.all(
+      docs
+        .filter((d) => !(d as any)._deleted)
+        .map(async (doc) => {
+          const url = await this.getDownloadUrl(doc.storageKey).catch(() => '');
+          return { ...doc, url };
+        }),
+    );
+  }
+
   async delete(orgId: string, mediaId: string, userId: string): Promise<void> {
     const doc = await this.couch.findById<DefectMedia>(orgId, mediaId);
     if (!doc) return;

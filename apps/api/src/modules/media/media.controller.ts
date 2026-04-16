@@ -1,7 +1,9 @@
 import {
   Controller, Post, Patch, Get, Delete, Param, Body, Query,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { IsString, IsEnum, IsNumber, IsOptional, IsPositive } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -29,11 +31,62 @@ class CompleteUploadDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() gpsLng?: number;
 }
 
+class DirectUploadDto {
+  @ApiProperty({ enum: ['defect', 'complaint', 'workOrder', 'inspectionSession'] })
+  @IsEnum(['defect', 'complaint', 'workOrder', 'inspectionSession'])
+  entityType: 'defect' | 'complaint' | 'workOrder' | 'inspectionSession';
+
+  @ApiProperty() @IsString() entityId: string;
+  @ApiProperty() @IsString() complexId: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() capturedAt?: string;
+}
+
 @ApiTags('Media')
 @ApiBearerAuth()
 @Controller({ path: 'media', version: '1' })
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
+
+  /**
+   * Direct upload (admin web) — multipart/form-data file → server → MinIO.
+   * Avoids CORS complexity of pre-signed URL approach in browser.
+   */
+  @Post('upload/direct')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR, UserRole.REVIEWER)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        entityType: { type: 'string', enum: ['defect', 'complaint', 'workOrder', 'inspectionSession'] },
+        entityId: { type: 'string' },
+        complexId: { type: 'string' },
+        capturedAt: { type: 'string' },
+      },
+    },
+  })
+  @ApiOperation({ summary: '미디어 직접 업로드 (서버 경유 → MinIO)' })
+  uploadDirect(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: DirectUploadDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return this.mediaService.uploadDirect(user.organizationId, dto, file, user._id);
+  }
+
+  /**
+   * List all media for an inspection session (with pre-signed download URLs).
+   */
+  @Get('by-session/:sessionId')
+  @ApiOperation({ summary: '세션 미디어 목록 조회 (URL 포함)' })
+  listBySession(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return this.mediaService.listBySession(user.organizationId, sessionId);
+  }
 
   /**
    * Step 1: Init upload — returns a pre-signed S3 PUT URL.

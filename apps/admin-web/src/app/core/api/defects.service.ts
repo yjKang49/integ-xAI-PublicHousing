@@ -24,6 +24,14 @@ export class DefectsService {
   private readonly mediaBase = `${environment.apiUrl}/media`;
   private readonly markerBase = `${environment.apiUrl}/markers`;
 
+  create(dto: {
+    complexId: string; buildingId: string; defectType: string; severity: string;
+    description: string; locationDescription: string; sessionId?: string; projectId?: string;
+    widthMm?: number; lengthMm?: number; depthMm?: number;
+  }): Observable<Defect> {
+    return this.http.post<any>(this.base, dto).pipe(map((r) => r.data ?? r));
+  }
+
   list(query: DefectListQuery = {}): Observable<{ data: Defect[]; meta: any }> {
     let params = new HttpParams();
     Object.entries(query).forEach(([k, v]) => {

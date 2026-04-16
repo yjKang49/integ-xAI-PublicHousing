@@ -8,7 +8,7 @@ import {
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateProjectStatusDto, UpdateProjectAssignmentDto } from './dto/update-project.dto';
-import { UpdateSessionStatusDto } from './dto/update-session.dto';
+import { UpdateSessionStatusDto, ChecklistItemUpdateDto } from './dto/update-session.dto';
 
 const PLATFORM_DB = '_platform';
 
@@ -263,6 +263,26 @@ export class ProjectsService {
     }
 
     return this.couch.update(orgId, { ...session, ...updates });
+  }
+
+  async updateChecklist(
+    orgId: string,
+    sessionId: string,
+    items: ChecklistItemUpdateDto[],
+    userId: string,
+  ): Promise<InspectionSession> {
+    const session = await this.findSessionById(orgId, sessionId);
+    const updateMap = new Map(items.map((i) => [i.id, i]));
+    const updated: ChecklistItem[] = session.checklistItems.map((item) => {
+      const u = updateMap.get(item.id);
+      return u ? { ...item, result: u.result, notes: u.notes ?? item.notes } : item;
+    });
+    return this.couch.update(orgId, {
+      ...session,
+      checklistItems: updated,
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+    });
   }
 
   // ── Checklist Templates ───────────────────────────────────────────────────

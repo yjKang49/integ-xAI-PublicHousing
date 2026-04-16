@@ -48,7 +48,9 @@
       "Read(//c/Users/on/workspace/xAI-PublicHousing/.idea/inspectionProfiles/**)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); build=d['projects']['admin-web']['architect']['build']; print\\(json.dumps\\(build.get\\('options',{}\\), indent=2\\)\\)\")",
       "Bash(node scripts/watch-crack-images.js)",
-      "Bash(cp \"data/균열/0001.jpg\" \"/tmp/test_crack.jpg\")"
+      "Bash(cp \"data/균열/0001.jpg\" \"/tmp/test_crack.jpg\")",
+      "Bash(yarn nx *)",
+      "Bash(yarn build *)"
     ]
   }
 }

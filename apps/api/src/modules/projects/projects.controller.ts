@@ -9,7 +9,7 @@ import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateProjectStatusDto, UpdateProjectAssignmentDto } from './dto/update-project.dto';
-import { UpdateSessionStatusDto } from './dto/update-session.dto';
+import { UpdateSessionStatusDto, UpdateChecklistDto } from './dto/update-session.dto';
 import { CurrentUserDto } from '../../common/interfaces/current-user.interface';
 
 @ApiTags('Projects')
@@ -114,6 +114,17 @@ export class ProjectsController {
   @ApiOperation({ summary: '세션 체크리스트 항목 조회' })
   getChecklist(@Param('sessionId') sessionId: string, @CurrentUser() user: CurrentUserDto) {
     return this.svc.getChecklist(user.organizationId, sessionId);
+  }
+
+  @Patch('sessions/:sessionId/checklist')
+  @Roles(UserRole.ORG_ADMIN, UserRole.INSPECTOR, UserRole.REVIEWER, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: '세션 체크리스트 항목 결과 저장' })
+  updateChecklist(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: UpdateChecklistDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return this.svc.updateChecklist(user.organizationId, sessionId, dto.items, user._id);
   }
 
   @Patch('sessions/:sessionId/status')
