@@ -511,14 +511,24 @@ yarn workspace @ax/api seed:master
 #### 5단계: 앱 실행
 
 ```bash
-# 터미널 1 — API (NestJS)
-yarn dev:api
+# 루트 디렉토리에서 — shared + API + Admin Web 동시 실행 (권장)
+yarn dev
 # → REST API:  http://localhost:3000/api/v1
 # → Swagger:   http://localhost:3000/api/docs
+# → Admin Web: http://localhost:4200
+```
 
-# 터미널 2 — Admin Web (Angular)
-yarn dev:admin
-# → http://localhost:4200
+> **주의:** `yarn dev`는 반드시 **루트 디렉토리**에서 실행해야 합니다.  
+> 각 앱 디렉토리(`apps/api`, `apps/admin-web`)에서 개별 실행하는 방식은 지원되지 않습니다.
+
+워커까지 함께 실행하려면:
+
+```bash
+# AI 워커 + 작업 워커 추가
+yarn dev:workers   # 별도 터미널
+
+# 또는 전체 한 번에
+yarn dev:all
 ```
 
 ### Docker 풀 스택 실행 (컨테이너 전체)
@@ -564,7 +574,10 @@ yarn docker:reset
 |------|------|-----------|
 | `Cannot find module '@ax/shared'` | shared 패키지 미빌드 | `yarn build:shared` |
 | CouchDB `No index exists for this sort` | 인덱스 생성 지연 | API 완전 기동 후 30초 대기 |
-| `ECONNREFUSED` — API 미응답 | API 서버 미실행 | `yarn dev:api` 실행 확인 |
+| `ECONNREFUSED` — API 미응답 | API 서버 미실행 | 루트에서 `yarn dev` 실행 확인 |
+| `NOAUTH Authentication required` (Redis) | `apps/api/.env`의 `REDIS_PASSWORD` 미설정 | `REDIS_PASSWORD=redispass` 추가 |
+| `error Command "dev" not found` | 앱 하위 디렉토리에서 실행 | 루트 디렉토리로 이동 후 `yarn dev` |
+| `Port 4200 is already in use` | 이전 프로세스 잔존 | `taskkill /PID <PID> /F` 후 재시작 |
 | 보고서 생성 실패 — 템플릿 없음 | Handlebars 경로 문제 | `docs/known-issues.md` KI-001 참조 |
 | E2E 테스트 `429 Too Many Requests` | ThrottlerGuard 제한 | `docs/known-issues.md` KI-006 참조 |
 | Windows에서 bash 스크립트 오류 | Unix 쉘 불일치 | Git Bash 또는 WSL 2 사용 |
@@ -737,10 +750,12 @@ yarn build:shared        # 공유 패키지 빌드 (consumers 실행 전 필수)
 yarn build:api           # API NestJS 빌드
 yarn build:admin         # Admin Web Angular 빌드
 
-# ── 개발 서버 ─────────────────────────────────────────────
-yarn dev:api             # API 개발 서버 (watch 모드) → :3000
-yarn dev:admin           # Admin Web 개발 서버 → :4200
-yarn dev:workers         # AI 워커 + 작업 워커 (Bull Queue 소비자)
+# ── 개발 서버 (루트 디렉토리에서 실행) ────────────────────
+yarn dev                 # ★ 권장: shared + API(:3000) + Admin Web(:4200) 동시 실행
+yarn dev:workers         # AI 워커 + 작업 워커 (Bull Queue 소비자, 별도 터미널)
+yarn dev:all             # 전체 6개 서비스 동시 실행
+yarn dev:api             # API만 단독 실행 (watch 모드) → :3000
+yarn dev:admin           # Admin Web만 단독 실행 → :4200
 
 # ── 시드 데이터 ───────────────────────────────────────────
 yarn workspace @ax/api seed:master   # 통합 마스터 시드 (Phase 1 — 권장)

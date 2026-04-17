@@ -50,7 +50,8 @@
       "Bash(node scripts/watch-crack-images.js)",
       "Bash(cp \"data/균열/0001.jpg\" \"/tmp/test_crack.jpg\")",
       "Bash(yarn nx *)",
-      "Bash(yarn build *)"
+      "Bash(yarn build *)",
+      "Bash(tasklist *)"
     ]
   }
 }
