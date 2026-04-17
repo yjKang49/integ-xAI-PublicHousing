@@ -51,7 +51,22 @@
       "Bash(cp \"data/균열/0001.jpg\" \"/tmp/test_crack.jpg\")",
       "Bash(yarn nx *)",
       "Bash(yarn build *)",
-      "Bash(tasklist *)"
+      "Bash(tasklist *)",
+      "Bash(xargs wc *)",
+      "Bash(python -c \"import pdfplumber\")",
+      "Bash(python -c \"import PyPDF2\")",
+      "Bash(python -c \"import fitz\")",
+      "Bash(pdftotext \"C:/Users/on/workspace/integ-xAI-PublicHousing/reference/bizplan.pdf\" -)",
+      "Bash(pdftotext -enc UTF-8 \"C:/Users/on/workspace/integ-xAI-PublicHousing/reference/bizplan.pdf\" -)",
+      "Bash(where pdftotext *)",
+      "Bash(where mutool *)",
+      "Bash(where python *)",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
+      "Bash(python -c \"import PyPDF2; print\\('PyPDF2 ok'\\)\")",
+      "Bash(python *)",
+      "Bash(find apps/api/src/modules -name \"*.controller.ts\" -exec basename {} \\\\;)",
+      "Bash(git mv *)",
+      "Bash(git checkout *)"
     ]
   }
 }

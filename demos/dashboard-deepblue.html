@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AX-SPRINT | 공공임대주택 스마트 안전관리 대시보드</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #050c1a; overflow: hidden;
+           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+    /* ── Animations ── */
+    @keyframes blink-critical {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.18; }
+    }
+    @keyframes pulse-high {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.55; }
+    }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scan-glow {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.6; }
+    }
+
+    .blink-critical { animation: blink-critical 1.15s ease-in-out infinite; }
+    .pulse-high      { animation: pulse-high 2s ease-in-out infinite; }
+    .fade-in-up      { animation: fade-in-up 0.5s ease-out forwards; }
+    .scan-glow       { animation: scan-glow 2s ease-in-out infinite; }
+
+    /* ── Layout helpers ── */
+    .card {
+      background: linear-gradient(145deg, #091525 0%, #0c1d36 100%);
+      border: 1px solid rgba(30, 80, 150, 0.32);
+      border-radius: 8px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 12px;
+      border-bottom: 1px solid rgba(30, 80, 150, 0.22);
+      flex-shrink: 0;
+    }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(30,90,180,0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30,90,180,0.055) 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.22); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ═══════════════════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════════════════ */
+const FLOORS = [
+  { id:'B2', label:'B2층', risk:0.08, status:'safe',     desc:'지하주차장 기초',             members:36 },
+  { id:'B1', label:'B1층', risk:0.16, status:'safe',     desc:'지하주차장 상부',             members:34 },
+  { id:'F1', label:'1층',  risk:0.43, status:'medium',   desc:'로비/필로티',                 members:18 },
+  { id:'F2', label:'2층',  risk:0.68, status:'high',     desc:'주거층 하부 · 기둥 변형 감지', members:16 },
+  { id:'F3', label:'3층',  risk:0.91, status:'critical', desc:'★H-빔 F3-C12 균열 진행',      members:16 },
+  { id:'F4', label:'4층',  risk:0.52, status:'medium',   desc:'주거층 중간',                 members:14 },
+  { id:'F5', label:'5층',  risk:0.24, status:'safe',     desc:'주거층 상부',                 members:12 },
+  { id:'RF', label:'옥상', risk:0.11, status:'safe',     desc:'옥상층',                      members: 6 },
+];
+
+const TICKER_ITEMS = [
+  { lvl:'critical', text:'[긴급] SH 행복주택 1단지 101동 3층 H-빔 F3-C12 균열 진행 감지 — Antigravity 리스크 지수 91.4 초과' },
+  { lvl:'warning',  text:'[경보] GBDC 봉양단지 B동 2층 기둥 비선형 FEM 해석 완료 — 좌굴 하중 87.3% 도달' },
+  { lvl:'info',     text:'[완료] RPA 자동 생성 — KICT 점검 보고서 RPT-2024-0847 발행 승인 대기 전환' },
+  { lvl:'info',     text:'[정상] SH 강남임대 2단지 정기 점검 완료 — 전체 부재 1,024개 이상 없음' },
+  { lvl:'warning',  text:'[주의] 대구 행복주택 C동 균열 게이지 포인트 0.8mm 임계치 초과 — 연속 모니터링 전환' },
+  { lvl:'info',     text:'[AI] Mask R-CNN 결함 탐지 완료 — 결함 후보 8개 검토 대기 중 (신뢰도 ≥93.2%)' },
+];
+
+const QUEUE = [
+  { id:'RPT-2024-0849', bldg:'SH 행복주택 1단지 101동', priority:'urgent', step:1, type:'AI 정밀 진단',    time:'09:42', inspector:'홍길동 선임' },
+  { id:'RPT-2024-0848', bldg:'GBDC 봉양단지 B동',       priority:'high',   step:2, type:'정기 안전 점검',  time:'09:18', inspector:'이영희 선임' },
+  { id:'RPT-2024-0847', bldg:'SH 강남임대 1단지',       priority:'medium', step:3, type:'KICT 기준 평가',  time:'08:55', inspector:'박철수 검토관' },
+  { id:'RPT-2024-0846', bldg:'대구 행복주택 C동',       priority:'high',   step:0, type:'드론 영상 분석',  time:'10:01', inspector:'김민준 선임' },
+  { id:'RPT-2024-0845', bldg:'경북 봉화 임대 2단지',    priority:'medium', step:3, type:'균열 추세 분석',  time:'08:32', inspector:'최지훈 검토관' },
+];
+
+const STEPS = ['AI 분석 중', '도면 대조 중', 'KICT 규정\n검토 완료', '보고서 발행\n승인 대기'];
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════════════════ */
+const RC = (s) => ({
+  critical:{ f:'#ef4444', t:'text-red-400',    bg:'bg-red-950/60',    b:'border-red-500/40' },
+  high:    { f:'#f97316', t:'text-orange-400', bg:'bg-orange-950/50', b:'border-orange-500/40' },
+  medium:  { f:'#eab308', t:'text-yellow-400', bg:'bg-yellow-950/40', b:'border-yellow-500/40' },
+  safe:    { f:'#22c55e', t:'text-emerald-400',bg:'bg-emerald-950/30',b:'border-emerald-500/30' },
+}[s] || { f:'#6b7280', t:'text-slate-400', bg:'bg-slate-900/30', b:'border-slate-600/30' });
+
+/* ═══════════════════════════════════════════════════════════
+   BUILDING SVG  (isometric BIM heatmap)
+═══════════════════════════════════════════════════════════ */
+function BuildingSVG() {
+  const W=165, SX=55, SY=24, FH=26, OX=32, OY=268;
+  const n = FLOORS.length;
+
+  const fCoords = (i) => {
+    const by=OY-i*FH, ty=by-FH;
+    return {
+      front:[[OX,by],[OX+W,by],[OX+W,ty],[OX,ty]],
+      side: [[OX+W,by],[OX+W+SX,by-SY],[OX+W+SX,ty-SY],[OX+W,ty]],
+    };
+  };
+  const roofPts = () => {
+    const ty=OY-n*FH;
+    return [[OX,ty],[OX+W,ty],[OX+W+SX,ty-SY],[OX+SX,ty-SY]];
+  };
+  const pts = (arr) => arr.map(([x,y])=>`${x},${y}`).join(' ');
+
+  return (
+    <svg viewBox="0 0 310 295" className="w-full h-full" style={{maxHeight:'270px'}}>
+      <defs>
+        <pattern id="sgrid" width="18" height="18" patternUnits="userSpaceOnUse">
+          <path d="M18 0L0 0 0 18" fill="none" stroke="rgba(59,130,246,0.07)" strokeWidth="0.5"/>
+        </pattern>
+        <filter id="glowF" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glowM" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <rect width="310" height="295" fill="url(#sgrid)"/>
+
+      {/* ground shadow */}
+      <ellipse cx={OX+W/2+SX/3} cy={OY+5} rx={W/2+20} ry={7} fill="rgba(0,0,0,0.5)"/>
+      {/* ground line */}
+      <line x1={OX-8} y1={OY} x2={OX+W+SX+10} y2={OY}
+        stroke="rgba(59,130,246,0.18)" strokeWidth="1" strokeDasharray="5,4"/>
+
+      {/* coordinate axis label */}
+      <text x="12" y={OY-n*FH/2} fill="rgba(59,130,246,0.35)" fontSize="7"
+        transform={`rotate(-90,12,${OY-n*FH/2})`} textAnchor="middle">고도(m)</text>
+
+      {FLOORS.map((floor, i) => {
+        const c  = RC(floor.status);
+        const co = fCoords(i);
+        const isCrit = floor.status === 'critical';
+        const isHigh = floor.status === 'high';
+        return (
+          <g key={floor.id} filter={isCrit ? 'url(#glowF)' : isHigh ? 'url(#glowM)' : undefined}>
+            {/* front face */}
+            <polygon points={pts(co.front)}
+              fill={c.f+'48'} stroke={c.f} strokeWidth={isCrit?1.8:0.7}
+              className={isCrit?'blink-critical':isHigh?'pulse-high':''}/>
+            {/* side face */}
+            <polygon points={pts(co.side)}
+              fill={c.f+'28'} stroke={c.f+'99'} strokeWidth="0.5"
+              className={isCrit?'blink-critical':''}/>
+            {/* structural column dividers */}
+            {[1,2,3,4].map(d=>(
+              <line key={d}
+                x1={OX+d*(W/5)} y1={OY-i*FH}
+                x2={OX+d*(W/5)} y2={OY-i*FH-FH}
+                stroke={c.f+'30'} strokeWidth="0.5"/>
+            ))}
+            {/* floor label */}
+            <text x={OX+5} y={OY-i*FH-FH/2+3.5} fill="rgba(200,220,255,0.8)"
+              fontSize="8.5" fontFamily="monospace">{floor.label}</text>
+            {/* risk % */}
+            <text x={OX+W-38} y={OY-i*FH-FH/2+3.5} fill={c.f}
+              fontSize="9" fontFamily="monospace" fontWeight="bold">
+              {(floor.risk*100).toFixed(0)}%
+            </text>
+            {/* warning icon on critical */}
+            {isCrit && (
+              <text x={OX+W/2-8} y={OY-i*FH-FH/2+5.5}
+                fill="#ef4444" fontSize="13" className="blink-critical">⚠</text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* roof */}
+      <polygon points={pts(roofPts())}
+        fill="rgba(20,50,110,0.75)" stroke="rgba(59,130,246,0.45)" strokeWidth="1"/>
+      {/* left vertical edge */}
+      <line x1={OX} y1={OY} x2={OX} y2={OY-n*FH}
+        stroke="rgba(59,130,246,0.35)" strokeWidth="1.5"/>
+
+      {/* outer bounding box overlay */}
+      <rect x={OX} y={OY-n*FH-SY} width={W+SX} height={n*FH+SY}
+        fill="none" stroke="rgba(0,210,255,0.09)" strokeWidth="1"/>
+
+      {/* scan line (decorative) */}
+      <line x1={OX} y1={OY-n*FH-SY/2} x2={OX+W+SX} y2={OY-n*FH-SY/2}
+        stroke="rgba(0,210,255,0.15)" strokeWidth="1" className="scan-glow"/>
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QUANT ENGINE CHART  (SVG line + area, animated scan)
+═══════════════════════════════════════════════════════════ */
+function QuantChart() {
+  const [tick, setTick] = useState(0);
+  useEffect(()=>{
+    const t = setInterval(()=>setTick(p=>(p+1)%240), 42);
+    return ()=>clearInterval(t);
+  },[]);
+
+  const VW=390, VH=128;
+  const pad={t:12,r:12,b:26,l:36};
+  const cW=VW-pad.l-pad.r, cH=VH-pad.t-pad.b;
+  const N=64;
+
+  const mk=(seed,base,amp)=>Array.from({length:N},(_, i)=>
+    Math.min(0.98,Math.max(0.02,
+      base
+      + amp*Math.sin(i*0.28+seed)*0.55
+      + amp*Math.sin(i*0.09+seed*1.7)*0.45
+      + (i>52&&seed<1?0.19:0)
+    ))
+  );
+
+  const series = useMemo(()=>[
+    {k:'s1', data:mk(0.4,0.56,0.19), color:'#ef4444', label:'101동 F3'},
+    {k:'s2', data:mk(1.3,0.36,0.13), color:'#f97316', label:'101동 F2'},
+    {k:'s3', data:mk(2.2,0.21,0.08), color:'#22c55e', label:'102동'},
+  ],[]);
+
+  const sx=(i)=>pad.l+(i/(N-1))*cW;
+  const sy=(v)=>pad.t+(1-v)*cH;
+
+  const line=(data)=>data.map((v,i)=>`${i===0?'M':'L'}${sx(i)},${sy(v)}`).join(' ');
+  const area=(data)=>{
+    const l=line(data);
+    return `${l} L${sx(N-1)},${sy(0)} L${sx(0)},${sy(0)} Z`;
+  };
+
+  const scanX = pad.l+(tick/240)*cW;
+  const dangerY = sy(0.7);
+  const yTks=[0,0.25,0.5,0.75,1];
+  const xTks=['-24h','-18h','-12h','-6h','NOW'];
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
+      <defs>
+        {series.map(({k,color})=>(
+          <linearGradient key={k} id={`ag-${k}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={color} stopOpacity="0.38"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        ))}
+      </defs>
+
+      {/* Y grid */}
+      {yTks.map(v=>{
+        const y=sy(v);
+        return <g key={v}>
+          <line x1={pad.l} y1={y} x2={pad.l+cW} y2={y}
+            stroke="rgba(59,130,246,0.1)" strokeWidth="1" strokeDasharray="3,3"/>
+          <text x={pad.l-3} y={y+3} fill="rgba(100,140,200,0.55)"
+            fontSize="7" textAnchor="end">{v*100|0}%</text>
+        </g>;
+      })}
+
+      {/* danger zone */}
+      <rect x={pad.l} y={pad.t} width={cW} height={dangerY-pad.t}
+        fill="rgba(239,68,68,0.04)"/>
+      <line x1={pad.l} y1={dangerY} x2={pad.l+cW} y2={dangerY}
+        stroke="rgba(239,68,68,0.45)" strokeWidth="1" strokeDasharray="5,3"/>
+      <text x={pad.l+cW-1} y={dangerY-3} fill="rgba(239,68,68,0.6)"
+        fontSize="6.5" textAnchor="end">위험 임계 70%</text>
+
+      {/* area fills */}
+      {series.map(({k,data})=>(
+        <path key={k} d={area(data)} fill={`url(#ag-${k})`}/>
+      ))}
+
+      {/* lines */}
+      {series.map(({k,data,color})=>(
+        <path key={k} d={line(data)} fill="none" stroke={color} strokeWidth="1.5"/>
+      ))}
+
+      {/* scan line + dot */}
+      <line x1={scanX} y1={pad.t} x2={scanX} y2={pad.t+cH}
+        stroke="rgba(0,212,255,0.35)" strokeWidth="1.5"/>
+      {series.map(({k,data,color})=>{
+        const idx=Math.round((tick/240)*(N-1));
+        return <circle key={k} cx={scanX} cy={sy(data[Math.min(idx,N-1)])}
+          r="2.5" fill={color} opacity="0.85"/>;
+      })}
+
+      {/* X labels */}
+      {xTks.map((l,i)=>(
+        <text key={l} x={pad.l+(i/(xTks.length-1))*cW} y={VH-5}
+          fill="rgba(100,140,200,0.55)" fontSize="7" textAnchor="middle">{l}</text>
+      ))}
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PIPELINE STEP
+═══════════════════════════════════════════════════════════ */
+function PStep({idx, label, done, active}) {
+  return (
+    <div className="flex flex-col items-center" style={{flex:1, minWidth:0}}>
+      <div className={`w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center text-[8px] font-bold flex-shrink-0 ${
+        done   ? 'bg-emerald-500 border-emerald-400 text-white'
+               : active ? 'bg-blue-600 border-blue-400 text-white animate-pulse'
+               : 'bg-transparent border-slate-700 text-slate-600'
+      }`}>{done?'✓':idx+1}</div>
+      <div className={`text-[7.5px] text-center mt-0.5 leading-tight whitespace-pre-line ${
+        done ? 'text-emerald-500' : active ? 'text-blue-400' : 'text-slate-600'
+      }`}>{label}</div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QUEUE ITEM
+═══════════════════════════════════════════════════════════ */
+function QueueItem({item}) {
+  const pMap = {
+    urgent:{ cls:'bg-red-950/60 text-red-400 border-red-600/40',    lbl:'긴급' },
+    high:  { cls:'bg-orange-950/60 text-orange-400 border-orange-600/40', lbl:'높음' },
+    medium:{ cls:'bg-slate-800/60 text-blue-400 border-blue-600/40', lbl:'보통' },
+  };
+  const p = pMap[item.priority];
+  return (
+    <div className="py-2 border-b border-slate-800/50">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-blue-400 font-mono font-semibold">{item.id}</span>
+          <span className={`text-[8.5px] px-1.5 py-px rounded border font-semibold ${p.cls}`}>{p.lbl}</span>
+        </div>
+        <div className="flex items-center gap-2 text-[8.5px] text-slate-500">
+          <span>{item.inspector}</span>
+          <span className="text-slate-600">·</span>
+          <span>{item.time}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] text-slate-200 truncate flex-1 mr-2">{item.bldg}</span>
+        <span className="text-[8.5px] bg-slate-800/80 text-slate-400 px-1.5 py-px rounded flex-shrink-0">{item.type}</span>
+      </div>
+      {/* pipeline steps */}
+      <div className="flex items-start gap-0">
+        {STEPS.map((label,i)=>(
+          <React.Fragment key={i}>
+            <PStep idx={i} label={label} done={i<item.step} active={i===item.step}/>
+            {i<STEPS.length-1 && (
+              <div className={`flex-shrink-0 h-px mt-[9px] ${i<item.step?'bg-emerald-500/45':'bg-slate-700/45'}`}
+                style={{width:'6px'}}/>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KPI CARD
+═══════════════════════════════════════════════════════════ */
+function KPICard({title, icon, value, unit, sub, trend, trendUp, color, progress, goal}) {
+  const cmap = {
+    green:  {border:'border-emerald-500/30', val:'text-emerald-400', acc:'#22c55e'},
+    blue:   {border:'border-blue-500/30',    val:'text-blue-400',    acc:'#3b82f6'},
+    orange: {border:'border-orange-500/30',  val:'text-orange-400',  acc:'#f97316'},
+    cyan:   {border:'border-cyan-500/30',    val:'text-cyan-400',    acc:'#06b6d4'},
+  };
+  const c = cmap[color] || cmap.blue;
+  return (
+    <div className={`card flex-1 p-3 border ${c.border}`}>
+      <div className="flex items-start justify-between mb-1.5">
+        <div className="text-[8.5px] text-slate-500 uppercase tracking-widest leading-tight pr-1">{title}</div>
+        <span className="text-xl flex-shrink-0">{icon}</span>
+      </div>
+      <div className={`text-[1.6rem] font-bold font-mono leading-none mb-1 ${c.val}`}>
+        {value}<span className="text-xs ml-0.5 text-slate-400 font-sans">{unit}</span>
+      </div>
+      {progress!==undefined && (
+        <div className="mb-1.5">
+          <div className="flex justify-between text-[7.5px] text-slate-600 mb-0.5">
+            <span>현재 {value}{unit}</span><span>목표 {goal}</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all"
+              style={{width:`${Math.min(100,(parseFloat(value)/parseFloat(goal))*100)}%`, background:c.acc}}/>
+          </div>
+        </div>
+      )}
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[8.5px] text-slate-500 leading-tight">{sub}</span>
+        <span className={`text-[8.5px] font-semibold ${trendUp?'text-emerald-400':'text-red-400'}`}>{trend}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN DASHBOARD
+═══════════════════════════════════════════════════════════ */
+function Dashboard() {
+  const [now,  setNow]      = useState(new Date());
+  const [selF, setSelF]     = useState(null);
+
+  useEffect(()=>{
+    const t=setInterval(()=>setNow(new Date()),1000);
+    return ()=>clearInterval(t);
+  },[]);
+
+  const timeStr = now.toLocaleTimeString('ko-KR',{hour12:false});
+  const dateStr = now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden bg-[#050c1a] text-white select-none">
+
+      {/* ── HEADER ─────────────────────────────────────────── */}
+      <header className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
+        style={{
+          background:'linear-gradient(90deg,#060d1c 0%,#091522 50%,#060d1c 100%)',
+          borderBottom:'1px solid rgba(30,80,150,0.45)',
+        }}>
+        <div className="flex items-center gap-3">
+          {/* logo */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
+              style={{background:'linear-gradient(135deg,#1d4ed8,#2563eb)'}}>AX</div>
+            <div>
+              <div className="text-[11px] font-bold text-white tracking-wide leading-tight">에이톰엔지니어링</div>
+              <div className="text-[9px] text-blue-400 leading-tight">국토교통부 AX-SPRINT 과제 | AI 신속상용화</div>
+            </div>
+          </div>
+          <div className="w-px h-8 bg-slate-700/60"/>
+          <div className="text-[13px] font-semibold tracking-wide" style={{color:'#67e8f9'}}>
+            공공임대주택 시설물 스마트 안전관리 시스템
+          </div>
+          <div className="w-px h-8 bg-slate-700/60"/>
+          {/* live badges */}
+          <div className="flex items-center gap-2">
+            {[
+              {color:'#22c55e', label:'SH 서울주택공사 연계'},
+              {color:'#3b82f6', label:'GBDC 경북개발공사 연계'},
+              {color:'#a78bfa', label:'KICT 기준 연동'},
+            ].map(({color,label})=>(
+              <div key={label} className="flex items-center gap-1 px-1.5 py-0.5 rounded"
+                style={{background:`${color}18`,border:`1px solid ${color}40`}}>
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{background:color}}/>
+                <span className="text-[8.5px]" style={{color}}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"/>
+            <span className="text-[10px] text-emerald-400 font-semibold">LIVE</span>
+            <span className="text-[9px] text-slate-500">실시간 모니터링</span>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-mono text-white">{timeStr}</div>
+            <div className="text-[8.5px] text-slate-500">{dateStr}</div>
+          </div>
+          <div className="relative cursor-pointer">
+            <span className="text-xl">🔔</span>
+            <span className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full bg-red-600 text-[8px]
+              flex items-center justify-center font-bold">3</span>
+          </div>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold cursor-pointer"
+            style={{background:'linear-gradient(135deg,#1e40af,#2563eb)'}}>관</div>
+        </div>
+      </header>
+
+      {/* ── TICKER ──────────────────────────────────────────── */}
+      <div className="flex items-center flex-shrink-0 overflow-hidden"
+        style={{height:'27px',background:'#060d1c',borderBottom:'1px solid rgba(30,80,150,0.28)'}}>
+        <div className="flex-shrink-0 flex items-center px-3 h-full font-bold text-[10px] tracking-widest"
+          style={{background:'#dc2626',color:'#fff',minWidth:'48px'}}>LIVE</div>
+        <div className="overflow-hidden flex-1 relative">
+          <div className="inline-block whitespace-nowrap"
+            style={{animation:'ticker-scroll 55s linear infinite'}}>
+            {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item,i)=>(
+              <span key={i} className="mr-14 text-[10px]" style={{
+                color: item.lvl==='critical'?'#f87171':item.lvl==='warning'?'#fb923c':'#64748b'
+              }}>{item.text}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── KPI ROW ─────────────────────────────────────────── */}
+      <div className="flex gap-3 px-4 pt-3 pb-2 flex-shrink-0">
+        <KPICard title="AI 붕괴 예방 적중률" icon="🛡️"
+          value="94.7" unit="%"
+          sub="모니터링 부재 1,247개 · 정상 1,175개"
+          trend="▲ 2.3% vs 전월" trendUp={true} color="green"/>
+        <KPICard title="RPA 행정처리 단축률" icon="⚡"
+          value="78.4" unit="%"
+          sub="AX-SPRINT 목표 80% · 98.0% 달성"
+          trend="▲ 5.1% vs 전월" trendUp={true} color="blue"
+          progress={78.4} goal="80%"/>
+        <KPICard title="Antigravity 통합 리스크 지수" icon="📊"
+          value="23.8" unit="/ 100"
+          sub="낮을수록 안전 · 전월 28.0 대비 개선"
+          trend="▼ 4.2 pts 개선" trendUp={true} color="orange"/>
+        <KPICard title="실시간 모니터링 현황" icon="🗺️"
+          value="8" unit="개 단지"
+          sub="센서 1,247개 · 경보 5.8% · 정상 94.2%"
+          trend="▲ 2개 단지 신규" trendUp={true} color="cyan"/>
+      </div>
+
+      {/* ── MAIN CONTENT ────────────────────────────────────── */}
+      <div className="flex flex-1 gap-3 px-4 pb-3 min-h-0">
+
+        {/* LEFT: Digital Twin ─────────────────────────────── */}
+        <div className="card grid-bg flex flex-col min-h-0" style={{flex:'0 0 58%'}}>
+          <div className="card-header">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"/>
+              <span className="text-[11px] font-semibold" style={{color:'#67e8f9'}}>
+                3D-BIM 구조안전 디지털트윈
+              </span>
+              <span className="text-[9px] text-slate-500 bg-slate-900/60 px-2 py-0.5 rounded">
+                SH 행복주택 1단지 101동
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[8.5px] text-slate-500">
+              <span>일송건축 Ground Truth 적용</span>
+              <span className="text-slate-700">·</span>
+              <span>세종대 비선형 FEM 해석</span>
+              <span className="text-slate-700">·</span>
+              <span style={{color:'#22d3ee'}}>업데이트: {timeStr}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-1 min-h-0 p-3 gap-3">
+            {/* SVG */}
+            <div className="flex-1 flex items-center justify-center relative min-w-0">
+              <BuildingSVG/>
+              {/* legend */}
+              <div className="absolute bottom-0 left-0 flex flex-wrap gap-x-3 gap-y-1">
+                {[['#ef4444','위험 ≥80%'],['#f97316','고위험 60~80%'],
+                  ['#eab308','주의 30~60%'],['#22c55e','정상 <30%']].map(([c,l])=>(
+                  <div key={l} className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-sm" style={{background:c}}/>
+                    <span className="text-[7.5px] text-slate-500">{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Floor risk list */}
+            <div className="w-48 flex flex-col min-h-0">
+              <div className="text-[7.5px] text-slate-600 uppercase tracking-widest mb-1.5">
+                부재별 위험도 현황
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-0.5">
+                {[...FLOORS].reverse().map(floor=>{
+                  const c=RC(floor.status);
+                  return (
+                    <div key={floor.id}
+                      onClick={()=>setSelF(floor.id===selF?null:floor.id)}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                        selF===floor.id?`${c.bg} border ${c.b}`:'hover:bg-slate-800/40'
+                      }`}>
+                      <div className="w-1 h-5 rounded-full flex-shrink-0" style={{background:c.f}}/>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-slate-200">{floor.label}</span>
+                          <span className={`text-[10px] font-mono font-bold ${c.t}`}>
+                            {(floor.risk*100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-0.5 bg-slate-800 rounded-full mt-0.5 overflow-hidden">
+                          <div className="h-full rounded-full"
+                            style={{width:`${floor.risk*100}%`,background:c.f}}/>
+                        </div>
+                        <div className="text-[7.5px] text-slate-600 truncate mt-0.5">{floor.desc}</div>
+                      </div>
+                      <span className="text-[7.5px] text-slate-700 flex-shrink-0">{floor.members}개</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Mini status table */}
+              <div className="mt-2 pt-2 border-t border-slate-800/60 flex-shrink-0">
+                <div className="text-[7.5px] text-slate-600 mb-1.5 uppercase tracking-widest">부재 상태 요약</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    {label:'위험',  val:1, color:'#ef4444'},
+                    {label:'고위험',val:1, color:'#f97316'},
+                    {label:'주의',  val:3, color:'#eab308'},
+                    {label:'정상',  val:3, color:'#22c55e'},
+                  ].map(({label,val,color})=>(
+                    <div key={label} className="flex items-center gap-1.5 bg-slate-900/50 rounded px-2 py-1">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{background:color}}/>
+                      <span className="text-[8px] text-slate-400">{label}</span>
+                      <span className="text-[9px] font-mono font-bold ml-auto" style={{color}}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT ───────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 min-h-0 flex-1">
+
+          {/* Quant Engine ─────────────────────────────────── */}
+          <div className="card flex flex-col min-h-0" style={{flex:'0 0 46%'}}>
+            <div className="card-header">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"/>
+                <span className="text-[11px] font-semibold text-orange-300">Antigravity 퀀트 엔진</span>
+                <span className="text-[9px] text-slate-500 bg-slate-900/60 px-2 py-0.5 rounded">
+                  부재 붕괴확률 실시간 예측
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[8.5px]">
+                {[{c:'#ef4444',l:'101동 F3'},{c:'#f97316',l:'101동 F2'},{c:'#22c55e',l:'102동'}].map(({c,l})=>(
+                  <span key={l} className="flex items-center gap-1.5 text-slate-400">
+                    <span className="block w-4 h-0.5" style={{background:c}}/>
+                    {l}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col min-h-0 px-2 pt-1 pb-2">
+              <QuantChart/>
+              <div className="grid grid-cols-3 gap-1.5 flex-shrink-0 mt-1">
+                {[
+                  {l:'101동 F3',v:'89.4%',d:'+12.3%',up:true},
+                  {l:'101동 F2',v:'67.1%',d:'+8.9%', up:true},
+                  {l:'102동 평균',v:'24.5%',d:'-2.1%',up:false},
+                ].map(item=>(
+                  <div key={item.l} className="rounded p-1.5" style={{background:'#0d1c30'}}>
+                    <div className="text-[7.5px] text-slate-500">{item.l}</div>
+                    <div className={`text-[13px] font-mono font-bold leading-tight ${item.up?'text-red-400':'text-emerald-400'}`}>
+                      {item.v}
+                    </div>
+                    <div className={`text-[7.5px] ${item.up?'text-red-500':'text-emerald-500'}`}>
+                      {item.d} 24h
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* RPA Report Queue ─────────────────────────────── */}
+          <div className="card flex flex-col flex-1 min-h-0">
+            <div className="card-header">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"/>
+                <span className="text-[11px] font-semibold text-blue-300">
+                  KICT 연동 AX 보고서 자동생성 큐
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[8.5px]">
+                <span className="text-emerald-400">완료 12건</span>
+                <span className="text-slate-700">·</span>
+                <span className="text-blue-400">처리중 5건</span>
+                <span className="text-slate-700">·</span>
+                <span className="text-yellow-400">대기 8건</span>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 min-h-0">
+              {QUEUE.map(item=><QueueItem key={item.id} item={item}/>)}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard/>);
+</script>
+</body>
+</html>

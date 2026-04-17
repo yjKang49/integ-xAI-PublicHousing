@@ -14,6 +14,7 @@
 
 ## 목차
 
+0. [문서 내용 Map of Concept (MoC)](#0-문서-내용-map-of-concept-moc)
 1. [사업 개요](#1-사업-개요)
 2. [문제 정의 및 솔루션](#2-문제-정의-및-솔루션)
 3. [플랫폼 주요 기능](#3-플랫폼-주요-기능)
@@ -32,6 +33,127 @@
 16. [Render.com 배포](#16-rendercom-배포)
 17. [문서 인덱스](#17-문서-인덱스)
 18. [버전 히스토리](#18-버전-히스토리)
+
+---
+
+## 0. 문서 내용 Map of Concept (MoC)
+
+> 본 문서(README)에 담긴 핵심 개념과 상호 관계를 한눈에 파악할 수 있는 개념 지도입니다.
+
+### 시스템 전체 개념 구조
+
+```mermaid
+flowchart TD
+    subgraph BG["📋 사업 배경 (§1·§2)"]
+        P1["🏢 공공임대주택 시설물\n안전 관리 공백"]
+        P2["👤 1인 708세대 관리\n(업계 기준 2.5배)"]
+        P3["⏱️ 민원 처리 8개월\n균열 원격 감시 불가"]
+    end
+
+    subgraph PF["⚙️ AX 플랫폼 코어 (§3·§4)"]
+        direction LR
+        AI["🤖 AI 엔진\nY-MaskNet · Antigravity\nMask R-CNN · Claude API"]
+        BIM["🏗️ 3D-BIM 디지털트윈\nThree.js · LiDAR LIO-SLAM\n층별 결함 위치 마커"]
+        RPA["🔄 RPA 행정자동화\nBull Queue · Puppeteer\nKICT 보고서 자동생성"]
+        IOT["📡 IoT 센서 모니터링\n균열 게이지 포인트\n임계치 경보 시스템"]
+    end
+
+    subgraph TECH["💻 기술 스택 (§5)"]
+        direction LR
+        FE["프론트엔드\nAngular 18 + Three.js\nAngular Material"]
+        BE["백엔드\nNestJS 10 + Redis 7.2\nBull Queue 4.12"]
+        DB["데이터 계층\nCouchDB 3.3 + MinIO\nPassport.js + JWT"]
+        AIAPI["AI 추론\n국산 NPU 엣지 서버\nClaude API · OpenCV WASM"]
+    end
+
+    subgraph STAKE["🤝 이해관계자"]
+        SH["SH 서울주택도시공사"]
+        GBDC["GBDC 경북개발공사"]
+        KICT["KICT 한국건설기술연구원"]
+        ATOM["주관: 에이톰엔지니어링"]
+    end
+
+    subgraph RESULT["🎯 기대 성과"]
+        R1["점검 업무 시간 50% 단축"]
+        R2["민원 처리 8개월 → 2주"]
+        R3["행정 자동화 70~100%"]
+        R4["0.2mm 이하 균열 탐지"]
+    end
+
+    BG -->|"문제 해결 요구"| PF
+    PF -->|"기반 기술"| TECH
+    STAKE -->|"실증 환경 제공"| PF
+    PF -->|"산출물"| RESULT
+```
+
+---
+
+### 문서 섹션별 개념 Map
+
+```mermaid
+mindmap
+  root(("AX\n공공임대주택\n안전관리\n플랫폼"))
+    사업 배경
+      §1 사업 개요
+        AX-SPRINT Agile 트랙
+        TRL 8 성능평가 완료
+      §2 문제·솔루션
+        AS-IS 수기 관리 한계
+        TO-BE 디지털 전환
+    플랫폼 설계
+      §3 주요 기능
+        관리자 웹 admin-web
+        모바일 앱 mobile-app
+        AI 파이프라인
+      §4 시스템 아키텍처
+        마이크로서비스 구조
+        이벤트 드리븐 Queue
+    개발 가이드
+      §5 기술 스택
+        Angular 18 NestJS 10
+        CouchDB Redis MinIO
+        Claude API NPU 엣지
+      §6 프로젝트 구조
+        Monorepo apps packages
+      §7·§8 환경 설정
+        Docker Compose
+        환경 변수
+    운영·배포
+      §9 데이터 세딩
+      §10 주요 명령어
+      §13 Cloudflare Tunnel
+      §16 Render.com 배포
+    기능 명세
+      §11 API 명세
+        Swagger OpenAPI 3.0
+      §12 데모 계정
+      §14 비즈니스 로직
+        점검 10단계 자동화
+        균열 추세 분석
+        RPA 보고서 흐름
+    현황·이력
+      §15 Phase 2 완료
+      §15 Phase 3 백로그
+      §17 문서 인덱스
+      §18 버전 히스토리
+```
+
+---
+
+### 핵심 개념 계층 요약표
+
+| 계층 | 개념 | 연관 섹션 | 핵심 키워드 |
+|------|------|-----------|-------------|
+| **사업 목적** | 공공임대주택 안전관리 디지털 전환 | §1·§2 | AX-SPRINT, TRL 8, 에이톰엔지니어링 |
+| **AI 엔진** | 결함 탐지·붕괴 예측·LLM 행정 | §3·§14 | Y-MaskNet, Antigravity 퀀트, Claude API |
+| **디지털트윈** | 3D 결함 위치·층별 위험도 시각화 | §3·§14 | Three.js, LiDAR, LIO-SLAM, glTF |
+| **IoT 모니터링** | 균열 게이지 실시간 경보 | §3·§14 | 게이지 포인트, 임계치, Bull Queue |
+| **RPA 자동화** | KICT 보고서 자동생성·행정 처리 | §3·§14 | Puppeteer, PDF, 이메일·SMS |
+| **기술 스택** | 풀스택 SaaS 구현 기반 | §5 | Angular 18, NestJS 10, CouchDB, Redis |
+| **보안·인증** | 역할 기반 접근 제어 | §5·§12 | JWT, RBAC, Passport.js |
+| **배포 인프라** | 온프레미스 + 클라우드 하이브리드 | §7·§13·§16 | Docker Compose, Cloudflare, Render.com |
+| **이해관계자** | 실증·협력 기관 | §1 | SH, GBDC, KICT |
+| **개발 현황** | 단계별 진행 상태 | §15 | Phase 2 완료, Phase 3 백로그 |
 
 ---
 

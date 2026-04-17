@@ -27,7 +27,7 @@ import { environment } from '../../../../environments/environment';
     PageHeaderComponent, SkeletonComponent, EmptyStateComponent, StatusBadgeComponent,
   ],
   template: `
-    <div class="ax-page">
+    <div class="ax-page db-dashboard">
 
       <!-- ── 페이지 헤더 ── -->
       <ax-page-header
@@ -278,7 +278,7 @@ import { environment } from '../../../../environments/environment';
         <div class="db-main-grid">
 
           <!-- B-1: 결함 유형 분포 — 메인 차트 패널 -->
-          <div class="db-panel">
+          <div class="db-panel db-panel--chart">
             <div class="db-panel__head">
               <mat-icon style="color: var(--ax-color-brand-primary)" aria-hidden="true">bar_chart</mat-icon>
               <h2 class="db-panel__title">결함 유형 분포</h2>
@@ -299,7 +299,7 @@ import { environment } from '../../../../environments/environment';
                   <div class="db-defect-row__bar-wrap" role="progressbar"
                        [attr.aria-valuenow]="item.count"
                        [attr.aria-valuemax]="maxDefectCount(d)">
-                    <div class="db-defect-row__bar"
+                    <div class="db-defect-row__bar db-defect-bar--{{ defectColorKey(item.type) }}"
                          [style.width.%]="barPct(item.count, d)"></div>
                   </div>
                   <span class="db-defect-row__count">{{ item.count }}<em>건</em></span>
@@ -558,6 +558,13 @@ import { environment } from '../../../../environments/environment';
   styles: [`
     :host { display: block; }
 
+    /* ── 대시보드 전체 레이아웃: flex column with section gap ── */
+    .db-dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ax-spacing-12);
+    }
+
     /* ════════════════════════════════════════════════════════════════ */
     /* AI 성과 배너 (기존 유지)                                          */
     /* ════════════════════════════════════════════════════════════════ */
@@ -702,13 +709,17 @@ import { environment } from '../../../../environments/environment';
       }
 
       &--danger {
+        background: rgba(220, 38, 38, 0.04);
         mat-icon { color: var(--ax-color-danger); }
         .db-strip__val { color: var(--ax-color-danger-text); }
+        &:hover { background: rgba(220, 38, 38, 0.09); }
       }
 
       &--warn {
+        background: rgba(217, 119, 6, 0.04);
         mat-icon { color: var(--ax-color-warning); }
         .db-strip__val { color: var(--ax-color-warning-text); }
+        &:hover { background: rgba(217, 119, 6, 0.09); }
       }
     }
 
@@ -859,7 +870,7 @@ import { environment } from '../../../../environments/environment';
     /* ════════════════════════════════════════════════════════════════ */
     .db-main-grid {
       display: grid;
-      grid-template-columns: 1fr 300px;
+      grid-template-columns: 1fr 360px;
       gap: var(--ax-spacing-16);
       align-items: start;
 
@@ -876,9 +887,14 @@ import { environment } from '../../../../environments/environment';
 
     .db-defect-row {
       display: grid;
-      grid-template-columns: 112px 1fr 54px 38px;
+      grid-template-columns: 120px 1fr 56px 42px;
       align-items: center;
       gap: 10px;
+      padding: 3px 4px;
+      border-radius: var(--ax-radius-sm);
+      transition: background var(--ax-transition-fast);
+
+      &:hover { background: var(--ax-color-bg-surface-alt); }
     }
 
     .db-defect-row__type {
@@ -911,7 +927,7 @@ import { environment } from '../../../../environments/environment';
     }
 
     .db-defect-row__bar-wrap {
-      height: 12px;
+      height: 20px;
       background: var(--ax-color-bg-surface-alt);
       border-radius: var(--ax-radius-sm);
       overflow: hidden;
@@ -920,11 +936,21 @@ import { environment } from '../../../../environments/environment';
 
     .db-defect-row__bar {
       height: 100%;
-      background: var(--ax-color-brand-primary);
-      opacity: 0.65;
       border-radius: var(--ax-radius-sm);
       transition: width 0.5s ease;
+      background: var(--ax-color-brand-primary);
+      opacity: 0.75;
     }
+
+    /* 결함 유형별 막대 색상 — 점 색상과 일치 */
+    .db-defect-bar--crack     { background: var(--ax-color-danger);  opacity: 0.8; }
+    .db-defect-bar--leak      { background: var(--ax-color-info);    opacity: 0.8; }
+    .db-defect-bar--spalling  { background: var(--ax-color-warning); opacity: 0.8; }
+    .db-defect-bar--corrosion { background: #8b5cf6; opacity: 0.8; }
+    .db-defect-bar--effl      { background: #06b6d4; opacity: 0.8; }
+    .db-defect-bar--deform    { background: #f97316; opacity: 0.8; }
+    .db-defect-bar--settle    { background: #84cc16; opacity: 0.8; }
+    .db-defect-bar--other     { background: var(--ax-color-neutral); opacity: 0.8; }
 
     .db-defect-row__count {
       font-size: var(--ax-font-size-md);
@@ -950,6 +976,11 @@ import { environment } from '../../../../environments/environment';
       padding: var(--ax-spacing-32);
       font-size: var(--ax-font-size-sm);
       margin: 0;
+    }
+
+    /* 메인 차트 패널 상단 강조 — 시각적 우선순위 표현 */
+    .db-panel--chart {
+      border-top: 2px solid var(--ax-color-brand-primary);
     }
 
     /* ── 운영 지표 집약 패널 ── */
@@ -1092,7 +1123,7 @@ import { environment } from '../../../../environments/environment';
     /* ════════════════════════════════════════════════════════════════ */
     .db-bottom-grid {
       display: grid;
-      grid-template-columns: 260px 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: var(--ax-spacing-16);
       align-items: start;
 
