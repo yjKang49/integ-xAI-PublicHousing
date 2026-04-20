@@ -1,17 +1,23 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import { Schedule, AlertType, SeverityLevel } from '@ax/shared';
 import { AlertsService } from '../alerts/alerts.service';
 import { CreateScheduleDto, UpdateScheduleDto, ScheduleQueryDto, Recurrence } from './dto/schedule.dto';
 
+const CACHE_TTL = 10;
+
 @Injectable()
 export class SchedulesService {
   private readonly logger = new Logger(SchedulesService.name);
+  private readonly computingKeys = new Set<string>();
 
   constructor(
     private readonly couch: CouchService,
     private readonly alerts: AlertsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────
@@ -44,22 +50,44 @@ export class SchedulesService {
   }
 
   async findAll(orgId: string, query: ScheduleQueryDto) {
-    const selector: Record<string, any> = { docType: 'schedule', orgId };
-    if (query.complexId)    selector.complexId    = query.complexId;
-    if (query.scheduleType) selector.scheduleType = query.scheduleType;
-    if (query.isActive !== undefined) selector.isActive = query.isActive === 'true';
+    const cacheKey = `schedules:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 20, 100);
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
 
-    const { docs } = await this.couch.find<Schedule>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ nextOccurrence: 'asc' }],
-    });
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
 
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+    try {
+      const selector: Record<string, any> = { docType: 'schedule', orgId };
+      if (query.complexId)    selector.complexId    = query.complexId;
+      if (query.scheduleType) selector.scheduleType = query.scheduleType;
+      if (query.isActive !== undefined) selector.isActive = query.isActive === 'true';
+
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 20, 100);
+
+      const { docs } = await this.couch.find<Schedule>(orgId, selector, {
+        limit: limit + 1,
+        skip: (page - 1) * limit,
+        sort: [{ createdAt: 'desc' }],
+      });
+
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
+    }
   }
 
   async findById(orgId: string, id: string): Promise<Schedule> {

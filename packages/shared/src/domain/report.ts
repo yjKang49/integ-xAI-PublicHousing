@@ -76,4 +76,7 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   [ReportType.XAI_ASSESSMENT]:      '설명가능 AI 책임 평가 보고서',
   [ReportType.MAINTENANCE_PLAN]:    '장기수선계획',
   [ReportType.COMPLAINT_ANALYSIS]:  '민원 분석 보고서',
+  [ReportType.LEGAL_SAFETY_REPORT]: '법정 안전점검 보고서 (KDS)',
+  [ReportType.AGING_CURVE_REPORT]:  '노후화 곡선 보고서 (KALIS-FMS)',
+  [ReportType.FEM_ANALYSIS_REPORT]: 'FEM 구조해석 보고서',
 };

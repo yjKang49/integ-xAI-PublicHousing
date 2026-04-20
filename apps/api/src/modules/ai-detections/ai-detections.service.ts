@@ -1,6 +1,10 @@
 // apps/api/src/modules/ai-detections/ai-detections.service.ts
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import { JobsService } from '../jobs/jobs.service'
+
+const STATS_CACHE_TTL = 30
 import { FeatureFlagsService } from '../feature-flags/feature-flags.service'
 import { DefectCandidatesService } from '../defect-candidates/defect-candidates.service'
 import { DroneMissionsService } from '../drone-missions/drone-missions.service'
@@ -14,12 +18,14 @@ import { DroneMediaItemStatus } from '@ax/shared'
 @Injectable()
 export class AiDetectionsService {
   private readonly logger = new Logger(AiDetectionsService.name)
+  private readonly computingKeys = new Set<string>()
 
   constructor(
     private readonly jobsService: JobsService,
     private readonly flagsService: FeatureFlagsService,
     private readonly candidatesService: DefectCandidatesService,
     private readonly droneMissionsService: DroneMissionsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── 단일 이미지 탐지 트리거 ────────────────────────────────────────────────────
@@ -137,18 +143,34 @@ export class AiDetectionsService {
   // ── 탐지 통계 ──────────────────────────────────────────────────────────────────
 
   async getDetectionStats(orgId: string, complexId?: string) {
-    const q: DefectCandidateQueryOptions = { ...(complexId && { complexId }) }
-    const { data: pending }  = await this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.PENDING,  limit: 0 })
-    const { data: approved } = await this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.APPROVED, limit: 0 })
-    const { data: rejected } = await this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.REJECTED, limit: 0 })
-    const { data: promoted } = await this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.PROMOTED, limit: 0 })
-
-    return {
-      pending:  pending.length,
-      approved: approved.length,
-      rejected: rejected.length,
-      promoted: promoted.length,
-      total:    pending.length + approved.length + rejected.length + promoted.length,
+    const cacheKey = `ai-detections:stats:${orgId}:${complexId ?? 'all'}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
     }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const q: DefectCandidateQueryOptions = { ...(complexId && { complexId }) }
+      const [{ data: pending }, { data: approved }, { data: rejected }, { data: promoted }] = await Promise.all([
+        this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.PENDING,  limit: 0 }),
+        this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.APPROVED, limit: 0 }),
+        this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.REJECTED, limit: 0 }),
+        this.candidatesService.findAll(orgId, { ...q, reviewStatus: CandidateReviewStatus.PROMOTED, limit: 0 }),
+      ])
+      const result = {
+        pending:  pending.length,
+        approved: approved.length,
+        rejected: rejected.length,
+        promoted: promoted.length,
+        total:    pending.length + approved.length + rejected.length + promoted.length,
+      }
+      await this.redis.setex(cacheKey, STATS_CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 }

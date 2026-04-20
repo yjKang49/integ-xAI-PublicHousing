@@ -2,6 +2,8 @@
 import {
   Injectable, Logger, NotFoundException, BadRequestException,
 } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import { v4 as uuid } from 'uuid'
 import { CouchService } from '../../database/couch.service'
 import {
@@ -14,6 +16,8 @@ import { ReviewCandidateDto, PromoteCandidateDto } from './dto/defect-candidate.
 // DefectsService는 순환참조 방지를 위해 직접 CouchDB로 접근
 import { Defect } from '@ax/shared'
 import { SeverityLevel, DefectType } from '@ax/shared'
+
+const CACHE_TTL = 10
 
 // 결함 유형 매핑: CandidateDefectType → DefectType
 const CANDIDATE_TO_DEFECT_TYPE: Partial<Record<CandidateDefectType, string>> = {
@@ -30,8 +34,12 @@ const CANDIDATE_TO_DEFECT_TYPE: Partial<Record<CandidateDefectType, string>> = {
 @Injectable()
 export class DefectCandidatesService {
   private readonly logger = new Logger(DefectCandidatesService.name)
+  private readonly computingKeys = new Set<string>()
 
-  constructor(private readonly couch: CouchService) {}
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   // ── 배치 생성 (워커 → API 내부 호출) ──────────────────────────────────────────
 
@@ -89,28 +97,50 @@ export class DefectCandidatesService {
     orgId: string,
     query: DefectCandidateQueryOptions,
   ): Promise<{ data: DetectedDefectCandidate[]; meta: { total: number; page: number; limit: number; hasNext: boolean } }> {
-    const selector: Record<string, any> = { docType: 'defectCandidate', orgId }
-    if (query.complexId)       selector.complexId       = query.complexId
-    if (query.buildingId)      selector.buildingId      = query.buildingId
-    if (query.sourceType)      selector.sourceType      = query.sourceType
-    if (query.sourceMissionId) selector.sourceMissionId = query.sourceMissionId
-    if (query.defectType)      selector.defectType      = query.defectType
-    if (query.reviewStatus)    selector.reviewStatus    = query.reviewStatus
-    if (query.confidenceLevel) selector.confidenceLevel = query.confidenceLevel
+    const cacheKey = `defectCandidates:list:${orgId}:${JSON.stringify(query)}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
 
-    const page  = Math.max(1, query.page  ?? 1)
-    const limit = Math.min(query.limit ?? 20, 100)
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
+    }
 
-    const { docs: allDocs } = await this.couch.find<DetectedDefectCandidate>(orgId, selector, { limit: 0 })
-    const total = allDocs.length
+    this.computingKeys.add(cacheKey)
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
 
-    const { docs } = await this.couch.find<DetectedDefectCandidate>(orgId, selector, {
-      limit,
-      skip: (page - 1) * limit,
-      sort: [{ createdAt: 'desc' }],
-    })
+    try {
+      const selector: Record<string, any> = { docType: 'defectCandidate', orgId }
+      if (query.complexId)       selector.complexId       = query.complexId
+      if (query.buildingId)      selector.buildingId      = query.buildingId
+      if (query.sourceType)      selector.sourceType      = query.sourceType
+      if (query.sourceMissionId) selector.sourceMissionId = query.sourceMissionId
+      if (query.defectType)      selector.defectType      = query.defectType
+      if (query.reviewStatus)    selector.reviewStatus    = query.reviewStatus
+      if (query.confidenceLevel) selector.confidenceLevel = query.confidenceLevel
 
-    return { data: docs, meta: { total, page, limit, hasNext: page * limit < total } }
+      const page  = Math.max(1, query.page  ?? 1)
+      const limit = query.limit === 0 ? 10000 : Math.min(query.limit ?? 20, 100)
+
+      const { docs } = await this.couch.find<DetectedDefectCandidate>(orgId, selector, {
+        limit: limit + 1,
+        skip: (page - 1) * limit,
+        sort: [{ createdAt: 'desc' }],
+      })
+
+      const hasNext = docs.length > limit
+      const data = hasNext ? docs.slice(0, limit) : docs
+      const total = hasNext ? page * limit + 1 : (page - 1) * limit + data.length
+      const result = { data, meta: { total, page, limit, hasNext } }
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally {
+      this.computingKeys.delete(cacheKey)
+    }
   }
 
   async findById(orgId: string, id: string): Promise<DetectedDefectCandidate> {

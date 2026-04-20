@@ -2,8 +2,12 @@
 import {
   Injectable, Logger, NotFoundException, BadRequestException,
 } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import * as crypto from 'crypto'
 import { CouchService } from '../../database/couch.service'
+
+const STATS_CACHE_TTL = 30
 import { JobsService } from '../jobs/jobs.service'
 import { FeatureFlagsService } from '../feature-flags/feature-flags.service'
 import {
@@ -26,11 +30,13 @@ import {
 @Injectable()
 export class ComplaintTriageService {
   private readonly logger = new Logger(ComplaintTriageService.name)
+  private readonly computingKeys = new Set<string>()
 
   constructor(
     private readonly couch: CouchService,
     private readonly jobsService: JobsService,
     private readonly flagsService: FeatureFlagsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── 트리거 ─────────────────────────────────────────────────────────────────
@@ -254,25 +260,36 @@ export class ComplaintTriageService {
   // ── 통계 ────────────────────────────────────────────────────────────────────
 
   async getStats(orgId: string, complexId?: string): Promise<Record<string, number>> {
-    const selector: any = { docType: 'complaintTriage', orgId }
-    if (complexId) selector.complexId = complexId
-
-    const { docs } = await this.couch.find<ComplaintTriage>(orgId, selector, { limit: 0 })
-
-    return {
-      total:         docs.length,
-      pending:       docs.filter(d => d.status === ComplaintTriageStatus.PENDING).length,
-      processing:    docs.filter(d => d.status === ComplaintTriageStatus.PROCESSING).length,
-      completed:     docs.filter(d => d.status === ComplaintTriageStatus.COMPLETED).length,
-      failed:        docs.filter(d => d.status === ComplaintTriageStatus.FAILED).length,
-      pendingReview: docs.filter(d => d.decisionStatus === TriageDecisionStatus.PENDING_REVIEW).length,
-      accepted:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.ACCEPTED).length,
-      modified:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.MODIFIED).length,
-      rejected:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.REJECTED).length,
-      ruleBased:     docs.filter(d => d.isRuleBased).length,
-      avgUrgency:    docs.length
-        ? Math.round(docs.reduce((s, d) => s + d.urgencyScore, 0) / docs.length)
-        : 0,
+    const cacheKey = `complaint-triage:stats:${orgId}:${complexId ?? 'all'}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
     }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const selector: any = { docType: 'complaintTriage', orgId }
+      if (complexId) selector.complexId = complexId
+      const { docs } = await this.couch.find<ComplaintTriage>(orgId, selector, { limit: 0 })
+      const result = {
+        total:         docs.length,
+        pending:       docs.filter(d => d.status === ComplaintTriageStatus.PENDING).length,
+        processing:    docs.filter(d => d.status === ComplaintTriageStatus.PROCESSING).length,
+        completed:     docs.filter(d => d.status === ComplaintTriageStatus.COMPLETED).length,
+        failed:        docs.filter(d => d.status === ComplaintTriageStatus.FAILED).length,
+        pendingReview: docs.filter(d => d.decisionStatus === TriageDecisionStatus.PENDING_REVIEW).length,
+        accepted:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.ACCEPTED).length,
+        modified:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.MODIFIED).length,
+        rejected:      docs.filter(d => d.decisionStatus === TriageDecisionStatus.REJECTED).length,
+        ruleBased:     docs.filter(d => d.isRuleBased).length,
+        avgUrgency:    docs.length ? Math.round(docs.reduce((s, d) => s + d.urgencyScore, 0) / docs.length) : 0,
+      }
+      await this.redis.setex(cacheKey, STATS_CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 }

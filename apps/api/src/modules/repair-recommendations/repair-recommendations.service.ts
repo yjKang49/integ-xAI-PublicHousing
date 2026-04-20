@@ -1,7 +1,11 @@
 // apps/api/src/modules/repair-recommendations/repair-recommendations.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import * as crypto from 'crypto'
 import { CouchService } from '../../database/couch.service'
+
+const CACHE_TTL = 10
 import {
   RepairRecommendation, RepairTimeline, RepairRecommendationDraft,
 } from '@ax/shared'
@@ -14,8 +18,12 @@ import {
 @Injectable()
 export class RepairRecommendationsService {
   private readonly logger = new Logger(RepairRecommendationsService.name)
+  private readonly computingKeys = new Set<string>()
 
-  constructor(private readonly couch: CouchService) {}
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   // ── 워커 결과에서 일괄 생성 ──────────────────────────────────────────────────
 
@@ -63,24 +71,32 @@ export class RepairRecommendationsService {
     orgId: string,
     query: RepairRecommendationQueryDto,
   ): Promise<{ items: RepairRecommendation[]; total: number }> {
-    const page  = Number(query.page ?? 1)
-    const limit = Number(query.limit ?? 20)
-    const skip  = (page - 1) * limit
-
-    const selector: any = { docType: 'repairRecommendation', orgId }
-    if (query.complexId)          selector.complexId          = query.complexId
-    if (query.diagnosisOpinionId) selector.diagnosisOpinionId = query.diagnosisOpinionId
-    if (query.defectId)           selector.defectId           = query.defectId
-    if (query.isApproved !== undefined) selector.isApproved   = query.isApproved
-    if (query.recommendedTimeline) selector.recommendedTimeline = query.recommendedTimeline
-
-    const { docs } = await this.couch.find<RepairRecommendation>(orgId, selector, {
-      limit,
-      skip,
-      sort: [{ priorityRank: 'asc' }],
-    })
-
-    return { items: docs, total: docs.length + skip }
+    const cacheKey = `repair-recs:list:${orgId}:${JSON.stringify(query)}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
+    }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const page  = Number(query.page ?? 1)
+      const limit = Number(query.limit ?? 20)
+      const skip  = (page - 1) * limit
+      const selector: any = { docType: 'repairRecommendation', orgId }
+      if (query.complexId)          selector.complexId          = query.complexId
+      if (query.diagnosisOpinionId) selector.diagnosisOpinionId = query.diagnosisOpinionId
+      if (query.defectId)           selector.defectId           = query.defectId
+      if (query.isApproved !== undefined) selector.isApproved   = query.isApproved
+      if (query.recommendedTimeline) selector.recommendedTimeline = query.recommendedTimeline
+      const { docs } = await this.couch.find<RepairRecommendation>(orgId, selector, { limit, skip, sort: [{ priorityRank: 'asc' }] })
+      const result = { items: docs, total: docs.length + skip }
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 
   async findByDiagnosisId(orgId: string, diagnosisId: string): Promise<RepairRecommendation[]> {

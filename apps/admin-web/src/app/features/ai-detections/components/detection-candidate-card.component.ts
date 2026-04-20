@@ -8,6 +8,19 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { DefectCandidate } from '../data-access/ai-detections.api';
 
+const DEFECT_IMG_FOLDER: Record<string, string> = {
+  CRACK:              '균열',
+  LEAK:               '누수',
+  SPALLING:           '박리',
+  DELAMINATION:       '박리',
+  CORROSION:          '부식',
+  EFFLORESCENCE:      '백태',
+  DEFORMATION:        '변형',
+  SPOILING:           '기타',
+  FIRE_RISK_CLADDING: '기타',
+  OTHER:              '기타',
+};
+
 @Component({
   selector: 'ax-detection-candidate-card',
   standalone: true,
@@ -45,6 +58,19 @@ import { DefectCandidate } from '../data-access/ai-detections.api';
       <!-- 이미지 + BBox 오버레이 -->
       <mat-card-content>
         <div class="image-container">
+          @if (resolvedImageUrl && !imgLoadError) {
+            <img
+              class="defect-img"
+              [src]="resolvedImageUrl"
+              [alt]="defectTypeLabel"
+              (error)="imgLoadError = true"
+            />
+          } @else {
+            <div class="img-placeholder">
+              <mat-icon>image_not_supported</mat-icon>
+              <span>{{ defectTypeLabel }}</span>
+            </div>
+          }
           <div class="bbox-overlay" [style]="bboxStyle">
             <span class="bbox-label">{{ defectTypeLabel }}</span>
           </div>
@@ -166,13 +192,25 @@ import { DefectCandidate } from '../data-access/ai-detections.api';
     .kcs-chip { background: #ffebee !important; color: #c62828 !important; font-size: 11px; }
 
     .image-container {
-      position: relative; height: 80px;
-      background: #f5f5f5; border-radius: 4px;
+      position: relative; height: 160px;
+      background: #1a1a2e; border-radius: 6px;
       margin-bottom: 8px; overflow: hidden;
     }
+    .defect-img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .img-placeholder {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px; color: #555; font-size: 11px;
+    }
+    .img-placeholder mat-icon { font-size: 32px; color: #444; }
     .bbox-overlay {
       position: absolute; border: 2px solid #f44336;
-      background: rgba(244, 67, 54, 0.1);
+      background: rgba(244, 67, 54, 0.15);
+      pointer-events: none;
     }
     .bbox-label {
       position: absolute; top: -18px; left: 0;
@@ -204,6 +242,15 @@ export class DetectionCandidateCardComponent {
   @Output() onReject  = new EventEmitter<DefectCandidate>();
   @Output() onReview  = new EventEmitter<DefectCandidate>();
   @Output() onPromote = new EventEmitter<DefectCandidate>();
+
+  imgLoadError = false;
+
+  get resolvedImageUrl(): string | null {
+    const raw = this.candidate.imageUrl;
+    if (raw) return raw;
+    const folder = DEFECT_IMG_FOLDER[this.candidate.defectType];
+    return folder ? `/static/data/${encodeURIComponent(folder)}/0001.jpg` : null;
+  }
 
   get defectTypeLabel(): string {
     const labels: Record<string, string> = {

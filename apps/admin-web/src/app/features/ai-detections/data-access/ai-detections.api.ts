@@ -22,6 +22,7 @@ export interface DefectCandidate {
   sourceMissionId?: string;
   sourceFrameId?: string;
   storageKey: string;
+  imageUrl?: string;
   defectType: CandidateDefectType;
   confidence: number;
   confidenceLevel: 'AUTO_ACCEPT' | 'REQUIRES_REVIEW' | 'MANUAL_REQUIRED';

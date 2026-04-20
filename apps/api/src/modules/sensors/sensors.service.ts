@@ -4,8 +4,12 @@
 import {
   Injectable, NotFoundException, ConflictException, Logger,
 } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
+
+const CACHE_TTL = 10;
 import {
   SensorDevice, SensorStatus, SensorType,
   DEFAULT_SENSOR_THRESHOLDS, SENSOR_TYPE_UNITS,
@@ -17,8 +21,12 @@ import {
 @Injectable()
 export class SensorsService {
   private readonly logger = new Logger(SensorsService.name);
+  private readonly computingKeys = new Set<string>();
 
-  constructor(private readonly couch: CouchService) {}
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   // ── 센서 등록 ──────────────────────────────────────────────────────
   async create(orgId: string, dto: CreateSensorDeviceDto, createdBy: string): Promise<SensorDevice> {
@@ -72,23 +80,33 @@ export class SensorsService {
 
   // ── 목록 조회 ──────────────────────────────────────────────────────
   async findAll(orgId: string, query: SensorDeviceQueryDto) {
-    const selector: Record<string, any> = { docType: 'sensorDevice', orgId };
-    if (query.complexId)  selector.complexId  = query.complexId;
-    if (query.sensorType) selector.sensorType = query.sensorType;
-    if (query.status)     selector.status     = query.status;
-    if (query.buildingId) selector.buildingId = query.buildingId;
-
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 50, 200);
-
-    const { docs } = await this.couch.find<SensorDevice>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ createdAt: 'desc' }],
-    });
-
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+    const cacheKey = `sensors:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const selector: Record<string, any> = { docType: 'sensorDevice', orgId };
+      if (query.complexId)  selector.complexId  = query.complexId;
+      if (query.sensorType) selector.sensorType = query.sensorType;
+      if (query.status)     selector.status     = query.status;
+      if (query.buildingId) selector.buildingId = query.buildingId;
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 50, 200);
+      const { docs } = await this.couch.find<SensorDevice>(orgId, selector, {
+        limit: limit + 1, skip: (page - 1) * limit, sort: [{ createdAt: 'desc' }],
+      });
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   // ── 단건 조회 (ID) ─────────────────────────────────────────────────

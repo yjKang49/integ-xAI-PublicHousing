@@ -2,9 +2,13 @@
 import {
   Injectable, Logger, NotFoundException, BadRequestException,
 } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import * as crypto from 'crypto'
 import { CouchService } from '../../database/couch.service'
+
+const STATS_CACHE_TTL = 30
 import { JobsService } from '../jobs/jobs.service'
 import { FeatureFlagsService } from '../feature-flags/feature-flags.service'
 import { RepairRecommendationsService } from '../repair-recommendations/repair-recommendations.service'
@@ -30,12 +34,14 @@ import {
 @Injectable()
 export class DiagnosisOpinionsService {
   private readonly logger = new Logger(DiagnosisOpinionsService.name)
+  private readonly computingKeys = new Set<string>()
 
   constructor(
     private readonly couch: CouchService,
     private readonly jobsService: JobsService,
     private readonly flagsService: FeatureFlagsService,
     private readonly recommendationsService: RepairRecommendationsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── 분석 트리거 ─────────────────────────────────────────────────────────────
@@ -292,19 +298,32 @@ export class DiagnosisOpinionsService {
   // ── 통계 ────────────────────────────────────────────────────────────────────
 
   async getStats(orgId: string, complexId?: string): Promise<Record<string, number>> {
-    const selector: any = { docType: 'diagnosisOpinion', orgId }
-    if (complexId) selector.complexId = complexId
-
-    const { docs } = await this.couch.find<DiagnosisOpinion>(orgId, selector, { limit: 0 })
-
-    return {
-      total: docs.length,
-      draft:     docs.filter(d => d.status === DiagnosisOpinionStatus.DRAFT).length,
-      reviewing: docs.filter(d => d.status === DiagnosisOpinionStatus.REVIEWING).length,
-      approved:  docs.filter(d => d.status === DiagnosisOpinionStatus.APPROVED).length,
-      rejected:  docs.filter(d => d.status === DiagnosisOpinionStatus.REJECTED).length,
-      immediate: docs.filter(d => d.urgency === DiagnosisUrgency.IMMEDIATE).length,
-      urgent:    docs.filter(d => d.urgency === DiagnosisUrgency.URGENT).length,
+    const cacheKey = `diagnosis:stats:${orgId}:${complexId ?? 'all'}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
     }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const selector: any = { docType: 'diagnosisOpinion', orgId }
+      if (complexId) selector.complexId = complexId
+      const { docs } = await this.couch.find<DiagnosisOpinion>(orgId, selector, { limit: 0 })
+      const result = {
+        total: docs.length,
+        draft:     docs.filter(d => d.status === DiagnosisOpinionStatus.DRAFT).length,
+        reviewing: docs.filter(d => d.status === DiagnosisOpinionStatus.REVIEWING).length,
+        approved:  docs.filter(d => d.status === DiagnosisOpinionStatus.APPROVED).length,
+        rejected:  docs.filter(d => d.status === DiagnosisOpinionStatus.REJECTED).length,
+        immediate: docs.filter(d => d.urgency === DiagnosisUrgency.IMMEDIATE).length,
+        urgent:    docs.filter(d => d.urgency === DiagnosisUrgency.URGENT).length,
+      }
+      await this.redis.setex(cacheKey, STATS_CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 }

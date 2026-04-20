@@ -2,6 +2,8 @@
 import {
   Injectable, NotFoundException, ForbiddenException, UnprocessableEntityException,
 } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import {
@@ -10,6 +12,8 @@ import {
 } from '@ax/shared';
 import { CreateComplaintRequest, UpdateComplaintRequest } from '@ax/shared';
 import { AutomationRulesService } from '../automation-rules/automation-rules.service';
+
+const CACHE_TTL = 10;
 
 /** Valid complaint status transitions — OPEN/TRIAGED are new, RECEIVED kept for compat */
 const STATUS_TRANSITIONS: Record<string, ComplaintStatus[]> = {
@@ -24,9 +28,12 @@ const STATUS_TRANSITIONS: Record<string, ComplaintStatus[]> = {
 
 @Injectable()
 export class ComplaintsService {
+  private readonly computingKeys = new Set<string>();
+
   constructor(
     private readonly couch: CouchService,
     private readonly automationRules: AutomationRulesService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async create(orgId: string, dto: CreateComplaintRequest, userId: string): Promise<Complaint> {
@@ -83,36 +90,58 @@ export class ComplaintsService {
   }
 
   async findAll(orgId: string, query: any) {
-    const selector: Record<string, any> = { docType: 'complaint', orgId };
-    if (query.complexId)   selector.complexId   = query.complexId;
-    if (query.status)      selector.status      = query.status;
-    if (query.category)    selector.category    = query.category;
-    if (query.assignedTo)  selector.assignedTo  = query.assignedTo;
-    if (query.priority)    selector.priority    = query.priority;
+    const cacheKey = `complaints:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    if (query.overdueOnly === 'true' || query.overdueOnly === true) {
-      selector.dueDate = { $lt: new Date().toISOString() };
-      selector.status  = { $nin: ['RESOLVED', 'CLOSED'] };
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
     }
 
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 20, 100);
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
 
-    // Count total matching documents (fields:['_id'] minimizes data transfer)
-    const { docs: countDocs } = await this.couch.find<{ _id: string }>(orgId, selector, {
-      limit: 0,
-      fields: ['_id'],
-    });
-    const total = countDocs.length;
+    try {
+      const selector: Record<string, any> = { docType: 'complaint', orgId };
+      if (query.complexId)   selector.complexId   = query.complexId;
+      if (query.status)      selector.status      = query.status;
+      if (query.category)    selector.category    = query.category;
+      if (query.assignedTo)  selector.assignedTo  = query.assignedTo;
+      if (query.priority)    selector.priority    = query.priority;
 
-    const { docs } = await this.couch.find<Complaint>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ submittedAt: 'desc' }],
-    });
+      if (query.overdueOnly === 'true' || query.overdueOnly === true) {
+        selector.dueDate = { $lt: new Date().toISOString() };
+        selector.status  = { $nin: ['RESOLVED', 'CLOSED'] };
+      }
 
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext, total } };
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 20, 100);
+
+      // Count total matching documents (fields:['_id'] minimizes data transfer)
+      const { docs: countDocs } = await this.couch.find<{ _id: string }>(orgId, selector, {
+        limit: 0,
+        fields: ['_id'],
+      });
+      const total = countDocs.length;
+
+      const { docs } = await this.couch.find<Complaint>(orgId, selector, {
+        limit: limit + 1,
+        skip: (page - 1) * limit,
+        sort: [{ submittedAt: 'desc' }],
+      });
+
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext, total } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
+    }
   }
 
   async updateStatus(

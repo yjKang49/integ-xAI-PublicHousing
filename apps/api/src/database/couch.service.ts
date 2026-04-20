@@ -2,6 +2,8 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import * as nano from 'nano';
 import { ConfigService } from '@nestjs/config';
+import * as http from 'http';
+import * as https from 'https';
 
 /**
  * CouchDB service — wraps nano library.
@@ -13,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 export class CouchService implements OnModuleInit {
   private readonly logger = new Logger(CouchService.name);
   private client: nano.ServerScope;
+  private readonly dbCache = new Map<string, nano.DocumentScope<any>>();
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -22,7 +25,14 @@ export class CouchService implements OnModuleInit {
     const password = this.configService.get<string>('COUCHDB_PASSWORD');
 
     const authUrl = url.replace('://', `://${user}:${password}@`);
-    this.client = nano(authUrl);
+    const isHttps = authUrl.startsWith('https');
+    const agentOptions = { keepAlive: true, maxSockets: 100, maxFreeSockets: 20 };
+    this.client = nano({
+      url: authUrl,
+      requestDefaults: {
+        agent: isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions),
+      },
+    });
 
     // Ensure _users and _replicator DBs exist
     await this.ensureSystemDatabases();
@@ -139,6 +149,29 @@ export class CouchService implements OnModuleInit {
       { index: { fields: ['docType', 'orgId', 'complexId', 'isApproved'] },         name: 'idx-repairrec-complex-approved' },
       { index: { fields: ['docType', 'orgId', 'defectId'] },                        name: 'idx-repairrec-defect' },
       { index: { fields: ['docType', 'orgId', 'recommendedTimeline', 'isApproved'] }, name: 'idx-repairrec-timeline' },
+      // ── Reports ───────────────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'generatedAt'] },                    name: 'idx-report-generated-at' },
+      { index: { fields: ['docType', 'orgId', 'reportType', 'generatedAt'] },      name: 'idx-report-type-generated' },
+      // ── Alerts ────────────────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'status', 'createdAt'] },            name: 'idx-alert-status-created' },
+      { index: { fields: ['docType', 'orgId', 'alertType', 'createdAt'] },         name: 'idx-alert-type-created' },
+      // ── Schedules ─────────────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'isActive', 'createdAt'] },          name: 'idx-schedule-active-created' },
+      { index: { fields: ['docType', 'orgId', 'scheduleType', 'createdAt'] },      name: 'idx-schedule-type-created' },
+      // ── Automation Rules ──────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'priority', 'createdAt'] },          name: 'idx-automation-rule-priority-created' },
+      { index: { fields: ['docType', 'orgId', 'isActive', 'priority'] },           name: 'idx-automation-rule-active-priority' },
+      // ── Repair Recommendations ────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'priorityRank'] },                   name: 'idx-repairrec-rank' },
+      // ── Risk Scoring ──────────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'isLatest', 'calculatedAt'] },       name: 'idx-riskscore-latest-calc' },
+      { index: { fields: ['docType', 'orgId', 'complexId', 'calculatedAt'] },      name: 'idx-riskscore-complex-calc' },
+      // ── Automation Executions ─────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'startedAt'] },                      name: 'idx-automation-exec-started' },
+      { index: { fields: ['docType', 'orgId', 'ruleId', 'startedAt'] },            name: 'idx-automation-exec-rule-started' },
+      // ── Sensor Readings ───────────────────────────────────────────
+      { index: { fields: ['docType', 'orgId', 'sensorId', 'recordedAt'] },         name: 'idx-sensor-reading-sensor-time' },
+      { index: { fields: ['docType', 'orgId', 'complexId', 'recordedAt'] },        name: 'idx-sensor-reading-complex-time' },
     ];
     for (const idx of indexes) {
       try { await (db as any).createIndex(idx); } catch {}
@@ -162,6 +195,9 @@ export class CouchService implements OnModuleInit {
    */
   async getOrgDb(orgId: string): Promise<nano.DocumentScope<any>> {
     const dbName = this.buildDbName(orgId);
+    if (this.dbCache.has(dbName)) {
+      return this.dbCache.get(dbName)!;
+    }
     try {
       await this.client.db.get(dbName);
     } catch (err: any) {
@@ -173,7 +209,9 @@ export class CouchService implements OnModuleInit {
         throw err;
       }
     }
-    return this.client.use(dbName);
+    const db = this.client.use(dbName);
+    this.dbCache.set(dbName, db);
+    return db;
   }
 
   /**
@@ -246,7 +284,16 @@ export class CouchService implements OnModuleInit {
       return { docs: result.docs as T[] };
     } catch (err: any) {
       // CouchDB: no index for sort → retry without sort, then sort in memory
-      if (options?.sort && err?.message?.includes('index')) {
+      // nano exposes the CouchDB error as err.error ("no_usable_index") or err.reason,
+      // not always as err.message — check all three fields
+      const msg = String(err?.message ?? err?.reason ?? err?.error ?? '');
+      const isIndexError =
+        err?.error === 'no_usable_index' ||
+        msg.includes('index') ||
+        msg.includes('single direction') ||
+        msg.includes('not an integer') ||
+        msg.includes('null');
+      if (options?.sort && isIndexError) {
         const fallbackQuery: nano.MangoQuery = {
           selector: { ...selector },
           limit: (options?.limit ?? 20) * 5, // fetch more to ensure sorted page is correct

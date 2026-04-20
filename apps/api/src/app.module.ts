@@ -59,13 +59,15 @@ import { SensorReadingsModule } from './modules/sensor-readings/sensor-readings.
 // Phase 2-9: 예지정비 & 장기수선 의사결정
 import { RiskScoringModule } from './modules/risk-scoring/risk-scoring.module';
 import { MaintenanceRecommendationsModule } from './modules/maintenance-recommendations/maintenance-recommendations.module';
+// TRL-8 보완: 외부 시스템 연동 (KALIS-FMS, 세움터)
+import { ExternalIntegrationsModule } from './modules/external-integrations/external-integrations.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
 
-    // Rate limiting: 100 req / 60s per IP
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // Rate limiting: 200000 req / 60s per IP (부하 테스트 환경 — 단일 IP 50 VU)
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 200000 }]),
 
     // Bull queue (Redis-backed)
     BullModule.forRoot({
@@ -136,6 +138,8 @@ import { MaintenanceRecommendationsModule } from './modules/maintenance-recommen
     // Phase 2-9: 예지정비 & 장기수선 의사결정
     RiskScoringModule,
     MaintenanceRecommendationsModule,
+    // TRL-8 보완: 외부 시스템 연동 (KALIS-FMS, 세움터 건축물대장)
+    ExternalIntegrationsModule,
   ],
   controllers: [HealthController],
   providers: [

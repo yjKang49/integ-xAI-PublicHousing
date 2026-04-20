@@ -17,11 +17,19 @@ export declare enum FeatureFlagKey {
     PHASE2_DRONE = "phase2.drone",
     PHASE2_DIGITAL_TWIN = "phase2.digital_twin",
     AI_AUTO_ACCEPT = "ai.auto_accept",
-    AI_DEFECT_DETECTION = "ai.defect_detection",// 결함 후보 자동 탐지 파이프라인
-    AI_CRACK_ANALYSIS = "ai.crack_analysis",// 균열 심층 분석 파이프라인 (OpenCV WASM)
-    AI_DIAGNOSIS_OPINION = "ai.diagnosis_opinion",// AI 진단 의견 생성 파이프라인 (LLM)
-    AI_COMPLAINT_TRIAGE = "ai.complaint_triage",// 민원 AI 자동 분류·우선순위·배정 추천
-    RPA_DRY_RUN = "rpa.dry_run"
+    AI_DEFECT_DETECTION = "ai.defect_detection",
+    AI_CRACK_ANALYSIS = "ai.crack_analysis",
+    AI_DIAGNOSIS_OPINION = "ai.diagnosis_opinion",
+    AI_COMPLAINT_TRIAGE = "ai.complaint_triage",
+    RPA_DRY_RUN = "rpa.dry_run",
+    AI_ANTIGRAVITY_ENGINE = "ai.antigravity_engine",
+    AI_FEM_VALIDATION = "ai.fem_validation",
+    AI_LIO_SLAM = "ai.lio_slam",
+    AI_VIDEO_DEIDENTIFY = "ai.video_deidentify",
+    AI_AGING_CURVE_PREDICT = "ai.aging_curve_predict",
+    AI_LEGAL_REPORT = "ai.legal_report",
+    EXTERNAL_KALIS_FMS = "external.kalis_fms",
+    EXTERNAL_SEJUMTEO = "external.sejumteo"
 }
 /** Default flag definitions used for seeding — no DB-managed fields */
 export declare const DEFAULT_FEATURE_FLAGS: Omit<FeatureFlag, '_id' | 'createdAt' | 'updatedAt' | 'updatedBy'>[];

@@ -2,8 +2,12 @@
 // Phase 2-9: 위험도 스코어 계산 서비스 (동기 계산 + Bull 큐 트리거)
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+
+const CACHE_TTL = 10;
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import {
@@ -18,10 +22,12 @@ import { TriggerRiskCalculationDto, RiskScoreQueryDto } from './dto/risk-scoring
 @Injectable()
 export class RiskScoringService {
   private readonly logger = new Logger(RiskScoringService.name);
+  private readonly computingKeys = new Set<string>();
 
   constructor(
     private readonly couch: CouchService,
     @InjectQueue('job-queue') private readonly queue: Queue,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── 위험도 계산 트리거 (Bull 큐 방식) ─────────────────────────────
@@ -204,22 +210,33 @@ export class RiskScoringService {
 
   // ── 목록 조회 ──────────────────────────────────────────────────────
   async findAll(orgId: string, query: RiskScoreQueryDto) {
-    const selector: Record<string, any> = { docType: 'riskScore', orgId, isLatest: true };
-    if (query.complexId)  selector.complexId  = query.complexId;
-    if (query.targetType) selector.targetType = query.targetType;
-    if (query.targetId)   selector.targetId   = query.targetId;
-    if (query.level)      selector.level      = query.level;
-
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 50, 200);
-
-    const { docs } = await this.couch.find<RiskScore>(orgId, selector, {
-      limit: limit + 1, skip: (page - 1) * limit,
-      sort: [{ calculatedAt: 'desc' }],
-    });
-
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+    const cacheKey = `risk-scoring:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const selector: Record<string, any> = { docType: 'riskScore', orgId, isLatest: true };
+      if (query.complexId)  selector.complexId  = query.complexId;
+      if (query.targetType) selector.targetType = query.targetType;
+      if (query.targetId)   selector.targetId   = query.targetId;
+      if (query.level)      selector.level      = query.level;
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 50, 200);
+      const { docs } = await this.couch.find<RiskScore>(orgId, selector, {
+        limit: limit + 1, skip: (page - 1) * limit, sort: [{ calculatedAt: 'desc' }],
+      });
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   async findById(orgId: string, id: string): Promise<RiskScore> {

@@ -13,13 +13,17 @@ export enum UserRole {
 }
 
 export enum DefectType {
-  CRACK = 'CRACK',           // 균열
-  LEAK = 'LEAK',             // 누수
-  SPALLING = 'SPALLING',     // 박리/박락
-  CORROSION = 'CORROSION',   // 부식
-  EFFLORESCENCE = 'EFFLORESCENCE', // 백태
-  DEFORMATION = 'DEFORMATION',     // 변형
-  SETTLEMENT = 'SETTLEMENT',       // 침하
+  CRACK = 'CRACK',                     // 균열
+  LEAK = 'LEAK',                       // 누수
+  SPALLING = 'SPALLING',               // 박리
+  DELAMINATION = 'DELAMINATION',       // 박락 (콘크리트 층 분리)
+  CORROSION = 'CORROSION',             // 부식
+  EFFLORESCENCE = 'EFFLORESCENCE',     // 백태
+  DEFORMATION = 'DEFORMATION',         // 변형
+  SETTLEMENT = 'SETTLEMENT',           // 침하
+  DRYVIT = 'DRYVIT',                   // 드라이비트 화재 취약 외장재 (사업계획서 핵심 탐지 대상)
+  FIRE_RISK_CLADDING = 'FIRE_RISK_CLADDING', // 화재 위험 외장 패널 (드라이비트 포함)
+  SPOILING = 'SPOILING',               // 외벽 오손/오염
   OTHER = 'OTHER',
 }
 
@@ -106,9 +110,12 @@ export enum ReportType {
   DEFECT_LIST = 'DEFECT_LIST',
   SUMMARY = 'SUMMARY',
   CRACK_TREND = 'CRACK_TREND',
-  XAI_ASSESSMENT = 'XAI_ASSESSMENT',       // KICT 기준 설명가능 AI 책임 평가 보고서
-  MAINTENANCE_PLAN = 'MAINTENANCE_PLAN',    // 장기수선계획
-  COMPLAINT_ANALYSIS = 'COMPLAINT_ANALYSIS', // 민원 분석 보고서
+  XAI_ASSESSMENT = 'XAI_ASSESSMENT',               // KICT 기준 설명가능 AI 책임 평가 보고서
+  MAINTENANCE_PLAN = 'MAINTENANCE_PLAN',            // 장기수선계획
+  COMPLAINT_ANALYSIS = 'COMPLAINT_ANALYSIS',        // 민원 분석 보고서
+  LEGAL_SAFETY_REPORT = 'LEGAL_SAFETY_REPORT',      // LLM/RAG 기반 법정 안전점검 보고서 (KDS 부합)
+  AGING_CURVE_REPORT = 'AGING_CURVE_REPORT',        // KALIS-FMS 이력 기반 노후화 곡선 보고서
+  FEM_ANALYSIS_REPORT = 'FEM_ANALYSIS_REPORT',      // FEM 구조해석 결과 보고서
 }
 
 export enum SyncStatus {
@@ -131,8 +138,12 @@ export enum AiDetectionMethod {
   MASK_RCNN = 'MASK_RCNN',         // Mask R-CNN 인스턴스 세그멘테이션
   Y_MASKNET = 'Y_MASKNET',         // Y-MaskNet (드론 비전 AI, 균열 정밀진단)
   OPENCV_WASM = 'OPENCV_WASM',     // OpenCV.js WASM (특허 10-2398241 구현)
+  ANTIGRAVITY = 'ANTIGRAVITY',     // Antigravity 오탐 보정 엔진 (비정형 패턴 vs 실제 손상 구분, FP 0 목표)
+  LIO_SLAM = 'LIO_SLAM',           // LiDAR-Inertial Odometry SLAM (6-DoF 3D 점군 맵핑)
+  FEM = 'FEM',                     // 세종대 비선형 FEM 교차검증 (잔류 하중 지지력 계산)
   RESIDENT_PHOTO = 'RESIDENT_PHOTO', // 거주자 참여형 비접촉 진단 (앱 촬영)
   MANUAL = 'MANUAL',               // 엔지니어 수동 입력
+  MOCK = 'MOCK',                   // 개발·시험 환경 Mock 탐지
 }
 
 /**

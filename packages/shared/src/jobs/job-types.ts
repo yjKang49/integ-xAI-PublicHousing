@@ -37,6 +37,16 @@ export enum JobType {
   // ── Phase 2-9: 예지정비 & 장기수선 의사결정 (job-queue) ──────────
   RISK_SCORE_CALCULATE    = 'RISK_SCORE_CALCULATE',    // 자산/구역 위험도 스코어 계산
   MAINTENANCE_RECOMMEND   = 'MAINTENANCE_RECOMMEND',   // 장기수선 권장 문서 생성
+
+  // ── TRL-8 보완: 핵심 사양 구현 (ai-queue / job-queue) ────────────
+  ANTIGRAVITY_CORRECTION  = 'ANTIGRAVITY_CORRECTION',  // Antigravity 오탐 보정 후처리 (FP 0 목표)
+  FEM_CROSS_VALIDATION    = 'FEM_CROSS_VALIDATION',    // 세종대 FEM 구조해석 교차검증 트리거
+  LIO_SLAM_MAPPING        = 'LIO_SLAM_MAPPING',        // LIO-SLAM 점군 데이터 수신·처리·3D 뷰 연동
+  VIDEO_DEIDENTIFICATION  = 'VIDEO_DEIDENTIFICATION',  // 드론·앱 영상 NPU 기반 비식별화 처리
+  AGING_CURVE_PREDICT     = 'AGING_CURVE_PREDICT',     // KALIS-FMS 이력 기반 노후화 곡선 도출·예측
+  LEGAL_REPORT_GENERATION = 'LEGAL_REPORT_GENERATION', // LLM/RAG 법정 안전진단 보고서 생성 (KDS)
+  KALIS_FMS_SYNC          = 'KALIS_FMS_SYNC',          // KALIS-FMS 결함 이력 동기화
+  SEJUMTEO_SYNC           = 'SEJUMTEO_SYNC',           // 세움터 건축물대장 정보 동기화
 }
 
 /** AI 처리 큐로 라우팅될 작업 유형 */
@@ -48,6 +58,12 @@ export const AI_JOB_TYPES: JobType[] = [
   JobType.CRACK_ANALYSIS,
   JobType.DIAGNOSIS_OPINION,
   JobType.COMPLAINT_TRIAGE,
+  // TRL-8
+  JobType.ANTIGRAVITY_CORRECTION,
+  JobType.FEM_CROSS_VALIDATION,
+  JobType.LIO_SLAM_MAPPING,
+  JobType.VIDEO_DEIDENTIFICATION,
+  JobType.AGING_CURVE_PREDICT,
 ]
 
 /** 범용 작업 큐로 라우팅될 작업 유형 */
@@ -65,6 +81,10 @@ export const JOB_WORKER_JOB_TYPES: JobType[] = [
   // Phase 2-9
   JobType.RISK_SCORE_CALCULATE,
   JobType.MAINTENANCE_RECOMMEND,
+  // TRL-8
+  JobType.LEGAL_REPORT_GENERATION,
+  JobType.KALIS_FMS_SYNC,
+  JobType.SEJUMTEO_SYNC,
 ]
 
 /** 작업 유형 → Bull 큐 이름 매핑 */
@@ -89,4 +109,13 @@ export const QUEUE_FOR_JOB_TYPE: Record<JobType, 'ai-queue' | 'job-queue'> = {
   // Phase 2-9
   [JobType.RISK_SCORE_CALCULATE]:       'job-queue',
   [JobType.MAINTENANCE_RECOMMEND]:      'job-queue',
+  // TRL-8
+  [JobType.ANTIGRAVITY_CORRECTION]:     'ai-queue',
+  [JobType.FEM_CROSS_VALIDATION]:       'ai-queue',
+  [JobType.LIO_SLAM_MAPPING]:           'ai-queue',
+  [JobType.VIDEO_DEIDENTIFICATION]:     'ai-queue',
+  [JobType.AGING_CURVE_PREDICT]:        'ai-queue',
+  [JobType.LEGAL_REPORT_GENERATION]:    'job-queue',
+  [JobType.KALIS_FMS_SYNC]:             'job-queue',
+  [JobType.SEJUMTEO_SYNC]:              'job-queue',
 }

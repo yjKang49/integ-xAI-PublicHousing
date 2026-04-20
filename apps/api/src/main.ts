@@ -4,6 +4,8 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import * as express from 'express';
+import * as path from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -68,6 +70,10 @@ async function bootstrap() {
     });
     console.log(`📚 Swagger UI: http://localhost:${process.env.PORT ?? 3000}/api/docs`);
   }
+
+  // 연구소 데이터 이미지 정적 서빙 — data/ 폴더를 /static/data/ 경로로 공개
+  const dataDir = path.join(__dirname, '../../../data');
+  app.use('/static/data', express.static(dataDir, { maxAge: '7d' }));
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

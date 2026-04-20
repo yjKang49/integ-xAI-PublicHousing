@@ -21,6 +21,8 @@ import {
   SkeletonComponent,
   BadgeVariant,
 } from '../../../shared/components';
+import { CrackTrendChartComponent, CrackDataPoint } from '../../../shared/components/crack-trend-chart/crack-trend-chart.component';
+import { Building3dViewerComponent, DefectMarker3D } from '../../../shared/components/building-3d-viewer/building-3d-viewer.component';
 
 @Component({
   selector: 'ax-crack-dashboard',
@@ -31,6 +33,7 @@ import {
     MatSelectModule, MatFormFieldModule, MatInputModule,
     MatTooltipModule, MatSnackBarModule, MatPaginatorModule,
     PageHeaderComponent, StatusBadgeComponent, EmptyStateComponent, SkeletonComponent,
+    CrackTrendChartComponent, Building3dViewerComponent,
   ],
   template: `
     <ax-page-header
@@ -193,6 +196,22 @@ import {
       <mat-paginator [length]="filtered().length" [pageSize]="20"
         [pageSizeOptions]="[10, 20, 50]" showFirstLastButtons />
     </div>
+
+    <!-- ── 시각화 패널 ── -->
+    <div class="ax-viz-grid">
+      <div class="ax-viz-panel">
+        <div class="ax-viz-panel__title">
+          <mat-icon>show_chart</mat-icon> 균열 폭 추이 (GP-B2-C3-N)
+        </div>
+        <ax-crack-trend-chart [data]="sampleTrendData" [thresholdMm]="1.0" [criticalMm]="2.0" />
+      </div>
+      <div class="ax-viz-panel">
+        <div class="ax-viz-panel__title">
+          <mat-icon>view_in_ar</mat-icon> 3D 건물 결함 현황
+        </div>
+        <ax-building-3d-viewer [markers]="building3dMarkers" [floors]="12" />
+      </div>
+    </div>
   `,
   styles: [`
     /* Alert badge in header actions */
@@ -251,6 +270,30 @@ import {
     .ax-filter-bar__field { min-width: 140px; }
     .ax-filter-bar__search-field { min-width: 200px; }
 
+    /* Visualization panels */
+    .ax-viz-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    @media (max-width: 900px) {
+      .ax-viz-grid { grid-template-columns: 1fr; }
+    }
+    .ax-viz-panel {
+      background: var(--ax-color-bg-surface);
+      border: 1px solid var(--ax-color-border);
+      border-radius: var(--ax-radius-lg);
+      padding: 16px;
+    }
+    .ax-viz-panel__title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600;
+      color: var(--ax-color-text-primary);
+      margin-bottom: 12px;
+      mat-icon { font-size: 16px; color: var(--ax-color-brand-primary); }
+    }
+
     /* Table */
     .ax-crack-table { width: 100%; }
 
@@ -297,6 +340,28 @@ export class CrackDashboardComponent implements OnInit {
   readonly gaugePoints = signal<CrackGaugePoint[]>([]);
   readonly filtered = signal<CrackGaugePoint[]>([]);
   readonly loading = signal(false);
+
+  /** ECharts — GP-B2-C3-N 균열 폭 추이 샘플 데이터 (55일치) */
+  readonly sampleTrendData: CrackDataPoint[] = (() => {
+    const pts: CrackDataPoint[] = [];
+    const base = Date.now() - 55 * 86_400_000;
+    for (let i = 0; i <= 55; i++) {
+      const t = i / 55;
+      const w = 0.35 + 1.47 * (t * t) + (Math.random() - 0.5) * 0.05;
+      pts.push({ date: new Date(base + i * 86_400_000).toISOString(), widthMm: +w.toFixed(3) });
+    }
+    return pts;
+  })();
+
+  /** Three.js — 건물 3D 결함 마커 */
+  readonly building3dMarkers: DefectMarker3D[] = [
+    { id: 'def_001', label: '균열 C-3 기둥',    severity: 'CRITICAL', x: -0.4, y: -0.8, z:  0.3 },
+    { id: 'def_003', label: '천장 누수',         severity: 'HIGH',     x:  0.2, y: -0.6, z: -0.2 },
+    { id: 'def_009', label: '외벽 박락',         severity: 'CRITICAL', x:  0.5, y:  0.4, z:  0.4 },
+    { id: 'def_004', label: '기둥 백태',         severity: 'MEDIUM',   x: -0.3, y: -0.3, z: -0.4 },
+    { id: 'def_005', label: '난간 부식',         severity: 'MEDIUM',   x:  0.0, y:  0.8, z:  0.5 },
+    { id: 'def_f07', label: '보도블록 침하',     severity: 'LOW',      x: -0.6, y: -1.0, z: -0.1 },
+  ];
 
   columns = ['status', 'name', 'location', 'baseline', 'threshold', 'installDate', 'active', 'actions'];
   filterRisk = '';

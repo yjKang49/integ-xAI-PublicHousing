@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthStore } from '../../core/store/auth.store';
 import { AlertStore } from '../../core/store/alert.store';
 import { AuthService } from '../../core/auth/auth.service';
+import { ScreenshotService } from '../../core/services/screenshot.service';
 
 @Component({
   selector: 'ax-header',
@@ -39,6 +40,21 @@ import { AuthService } from '../../core/auth/auth.service';
 
       <!-- ── 우측: 알림 + 유저 ── -->
       <div class="ax-topbar__right">
+
+        <!-- 이미지 캡처 / 보고서용 이미지 다운로드 -->
+        <button
+          class="ax-topbar__action-btn ax-topbar__capture-btn"
+          (click)="screenshot.captureAndDownload()"
+          [disabled]="screenshot.capturing()"
+          matTooltip="현재 화면 이미지 다운로드 (보고서용)"
+          aria-label="화면 캡처"
+        >
+          @if (screenshot.capturing()) {
+            <mat-icon class="spin">hourglass_empty</mat-icon>
+          } @else {
+            <mat-icon>photo_camera</mat-icon>
+          }
+        </button>
 
         <!-- 활성 경보 카운트 -->
         <a
@@ -194,6 +210,14 @@ import { AuthService } from '../../core/auth/auth.service';
       }
     }
 
+    .ax-topbar__capture-btn {
+      color: #93c5fd !important;
+      &:hover { background: rgba(59, 130, 246, 0.15) !important; }
+      &:disabled { opacity: 0.5; cursor: default; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+
     .ax-topbar__alert-badge {
       position: absolute;
       top: 4px;
@@ -290,8 +314,9 @@ import { AuthService } from '../../core/auth/auth.service';
 })
 export class HeaderComponent {
   readonly menuToggle = output<void>();
-  readonly authStore = inject(AuthStore);
-  readonly alertStore = inject(AlertStore);
+  readonly authStore    = inject(AuthStore);
+  readonly alertStore   = inject(AlertStore);
+  readonly screenshot   = inject(ScreenshotService);
   private readonly authService = inject(AuthService);
 
   userInitial(): string {

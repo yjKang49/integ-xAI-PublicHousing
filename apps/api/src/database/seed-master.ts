@@ -132,6 +132,747 @@ function buildTimeline(c: any): any[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// 예지정비 위험도 스코어 + 장기수선 권장 시드
+// ─────────────────────────────────────────────────────────────────────
+async function seedPredictiveMaintenance(db: nano.DocumentScope<any>) {
+  const ad = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+  const ts  = new Date().toISOString();
+
+  // ── 위험도 스코어 8건 ──────────────────────────────────────────────
+  // W = { defect:0.30, crack:0.25, sensor:0.20, complaint:0.15, age:0.10 }
+  // CRITICAL ≥76 | HIGH 51~75 | MEDIUM 26~50 | LOW 0~25
+  const riskScores = [
+    // ── CRITICAL ─────────────────────────────────────────────────────
+    {
+      _id: `riskScore:${ORG_ID}:rsk_102_bldg`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'BUILDING', targetId: BLDG_102, targetName: '102동',
+      // score = 90*0.30 + 88*0.25 + 65*0.20 + 70*0.15 + 80*0.10 = 27+22+13+10.5+8 = 80.5 → 81
+      score: 81, level: 'CRITICAL', confidence: 0.92,
+      calculatedAt: dAgo(1), isLatest: true,
+      subScores: {
+        defect:    { score: 90, weight: 0.30, contribution: 27.0,  details: '미수리 결함 18건 (CRITICAL 4건 포함). 외벽 박락·구조 균열 집중', dataPoints: 18 },
+        crack:     { score: 88, weight: 0.25, contribution: 22.0,  details: '균열 임계치 초과 6개소, 최대 균열폭 2.1 mm (KCS 기준 7배 초과)', dataPoints: 6 },
+        sensor:    { score: 65, weight: 0.20, contribution: 13.0,  details: 'IoT 센서 이상 감지 13건, CRITICAL 2건 (진동·CO₂)', dataPoints: 13 },
+        complaint: { score: 70, weight: 0.15, contribution: 10.5,  details: '누수·균열 관련 미해결 민원 7건, 긴급 민원 2건', dataPoints: 7 },
+        age:       { score: 80, weight: 0.10, contribution:  8.0,  details: '준공 28년 경과 (서비스 수명 40년 기준 잔존 수명 30%)', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 18, criticalDefects: 4, highDefects: 7,
+        crackThresholdExceedances: 6, maxCrackWidthMm: 2.10,
+        openComplaints: 7, urgentComplaints: 2,
+        activeAlerts: 5, criticalAlerts: 2,
+        sensorAnomalies: 13, sensorCriticalCount: 2,
+        assetAgeYears: 28, serviceLifeYears: 40, remainingLifeRatio: 0.30,
+        daysSinceLastInspection: 312,
+        lastInspectionDaysAgo: 312,
+        evidenceSummary: '미수리 결함 18건(CRITICAL 4건), 균열 임계 초과 6개소(최대 2.10mm), 센서 이상 13건',
+      },
+      createdAt: dAgo(1), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    {
+      _id: `riskScore:${ORG_ID}:rsk_102_nwall`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'ZONE', targetId: `zone:${ORG_ID}:zone_102_nwall`, targetName: '102동 북측 외벽',
+      // score = 95*0.30 + 92*0.25 + 72*0.20 + 75*0.15 + 85*0.10 = 28.5+23+14.4+11.25+8.5 = 85.65 → 86
+      score: 86, level: 'CRITICAL', confidence: 0.94,
+      calculatedAt: dAgo(1), isLatest: true,
+      subScores: {
+        defect:    { score: 95, weight: 0.30, contribution: 28.5,  details: '구조 균열+박락 CRITICAL 결함 집중 (def_f15: 폭 2.1mm, 길이 680mm)', dataPoints: 5 },
+        crack:     { score: 92, weight: 0.25, contribution: 23.0,  details: '게이지 GP-102-N8F 임계치 초과 (기준 1.5mm, 현재 2.3mm). 거동 진행형', dataPoints: 4 },
+        sensor:    { score: 72, weight: 0.20, contribution: 14.4,  details: '외벽 진동 센서 이상(2건), 누수 감지기 반응(1건)', dataPoints: 3 },
+        complaint: { score: 75, weight: 0.15, contribution: 11.25, details: '균열·누수 관련 입주민 민원 5건, 벽면 낙하물 신고 2건', dataPoints: 5 },
+        age:       { score: 85, weight: 0.10, contribution:  8.5,  details: '28년 경과 RC 외벽 — 중성화 깊이 측정 결과 40% 진행', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 5, criticalDefects: 3, highDefects: 2,
+        crackThresholdExceedances: 4, maxCrackWidthMm: 2.30,
+        openComplaints: 5, urgentComplaints: 2,
+        activeAlerts: 3, criticalAlerts: 2,
+        sensorAnomalies: 3, sensorCriticalCount: 2,
+        assetAgeYears: 28, serviceLifeYears: 40, remainingLifeRatio: 0.30,
+        daysSinceLastInspection: 312,
+        lastInspectionDaysAgo: 312,
+        evidenceSummary: '미수리 결함 5건(CRITICAL 3건), 균열 임계 초과 4개소(최대 2.30mm), 진동 센서 이상 2건',
+      },
+      createdAt: dAgo(1), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── HIGH ─────────────────────────────────────────────────────────
+    {
+      _id: `riskScore:${ORG_ID}:rsk_101_bldg`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'BUILDING', targetId: BLDG_101, targetName: '101동',
+      // score = 80*0.30 + 85*0.25 + 58*0.20 + 62*0.15 + 72*0.10 = 24+21.25+11.6+9.3+7.2 = 73.35 → 73
+      score: 73, level: 'HIGH', confidence: 0.88,
+      calculatedAt: dAgo(2), isLatest: true,
+      subScores: {
+        defect:    { score: 80, weight: 0.30, contribution: 24.0,  details: '미수리 결함 16건 (CRITICAL 1건: C-3기둥 수직 균열). 지하주차장 집중', dataPoints: 16 },
+        crack:     { score: 85, weight: 0.25, contribution: 21.25, details: '게이지 GP-B2-C3-N 임계치 초과(1.82mm). 최근 55일간 5.2배 증가', dataPoints: 6 },
+        sensor:    { score: 58, weight: 0.20, contribution: 11.6,  details: '지하주차장 CO₂·온도 센서 이상 12건, CRITICAL 0건', dataPoints: 12 },
+        complaint: { score: 62, weight: 0.15, contribution:  9.3,  details: '미해결 민원 6건 — 지하주차장 누수·냄새 관련 반복 접수', dataPoints: 6 },
+        age:       { score: 72, weight: 0.10, contribution:  7.2,  details: '준공 26년 경과. 방수층 재시공 이력 1회 (2020년)', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 16, criticalDefects: 1, highDefects: 5,
+        crackThresholdExceedances: 3, maxCrackWidthMm: 1.82,
+        openComplaints: 6, urgentComplaints: 1,
+        activeAlerts: 3, criticalAlerts: 1,
+        sensorAnomalies: 12, sensorCriticalCount: 0,
+        assetAgeYears: 26, serviceLifeYears: 40, remainingLifeRatio: 0.35,
+        daysSinceLastInspection: 18,
+        lastInspectionDaysAgo: 18,
+        evidenceSummary: '미수리 결함 16건(CRITICAL 1건), 균열 임계 초과 3개소(최대 1.82mm), CO₂ 센서 이상 12건',
+      },
+      createdAt: dAgo(2), updatedAt: dAgo(2), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    {
+      _id: `riskScore:${ORG_ID}:rsk_101_elev`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'ASSET', targetId: `facilityAsset:${ORG_ID}:ast_elevator_101`, targetName: '101동 엘리베이터',
+      // score = 68*0.30 + 0*0.25 + 88*0.20 + 62*0.15 + 92*0.10 = 20.4+0+17.6+9.3+9.2 = 56.5 → 57
+      score: 57, level: 'HIGH', confidence: 0.85,
+      calculatedAt: dAgo(3), isLatest: true,
+      subScores: {
+        defect:    { score: 68, weight: 0.30, contribution: 20.4,  details: '소음·진동 결함 3건, 비상버튼 불량 2건. 최근 3개월간 민원 집중', dataPoints: 5 },
+        crack:     { score:  0, weight: 0.25, contribution:  0.0,  details: '균열 해당 없음 (설비 자산)', dataPoints: 0 },
+        sensor:    { score: 88, weight: 0.20, contribution: 17.6,  details: '승강기 IoT 센서 이상 감지 14건 — 모터 과열·전류 스파이크 반복', dataPoints: 14 },
+        complaint: { score: 62, weight: 0.15, contribution:  9.3,  details: '엘리베이터 관련 미해결 민원 6건 (소음·멈춤·악취)', dataPoints: 6 },
+        age:       { score: 92, weight: 0.10, contribution:  9.2,  details: '준공 후 26년 경과. 법정 내용연수(25년) 초과. 교체 검토 대상', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 5, criticalDefects: 0, highDefects: 2,
+        crackThresholdExceedances: 0,
+        openComplaints: 6, urgentComplaints: 1,
+        activeAlerts: 2, criticalAlerts: 0,
+        sensorAnomalies: 14, sensorCriticalCount: 3,
+        assetAgeYears: 26, serviceLifeYears: 25, remainingLifeRatio: 0.0,
+        daysSinceLastInspection: 45,
+        lastInspectionDaysAgo: 45,
+        evidenceSummary: '법정 내용연수 초과 26년, 모터 IoT 이상 14건, 엘리베이터 민원 6건',
+      },
+      createdAt: dAgo(3), updatedAt: dAgo(3), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    {
+      _id: `riskScore:${ORG_ID}:rsk_parking`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'ZONE', targetId: ZONE_PKG_A, targetName: '지하주차장 A구역',
+      // score = 65*0.30 + 58*0.25 + 48*0.20 + 42*0.15 + 68*0.10 = 19.5+14.5+9.6+6.3+6.8 = 56.7 → 57
+      score: 57, level: 'HIGH', confidence: 0.87,
+      calculatedAt: dAgo(2), isLatest: true,
+      subScores: {
+        defect:    { score: 65, weight: 0.30, contribution: 19.5,  details: '미수리 결함 13건 (균열·누수·부식). CRITICAL 1건(C-3기둥)', dataPoints: 13 },
+        crack:     { score: 58, weight: 0.25, contribution: 14.5,  details: '게이지 3개소 임계치 초과 — GP-B2-C3-N(1.82mm), GP-B2-D4-E(0.92mm)', dataPoints: 4 },
+        sensor:    { score: 48, weight: 0.20, contribution:  9.6,  details: 'CO₂ 센서 경고 4건, 누수 감지 1건', dataPoints: 5 },
+        complaint: { score: 42, weight: 0.15, contribution:  6.3,  details: '주차장 누수·악취 미해결 민원 4건', dataPoints: 4 },
+        age:       { score: 68, weight: 0.10, contribution:  6.8,  details: '준공 26년. 지하방수층 1회 시공 이력 (2018년)', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 13, criticalDefects: 1, highDefects: 4,
+        crackThresholdExceedances: 4, maxCrackWidthMm: 1.82,
+        openComplaints: 4, urgentComplaints: 0,
+        activeAlerts: 2, criticalAlerts: 1,
+        sensorAnomalies: 5, sensorCriticalCount: 0,
+        assetAgeYears: 26, serviceLifeYears: 40, remainingLifeRatio: 0.35,
+        daysSinceLastInspection: 18,
+        lastInspectionDaysAgo: 18,
+        evidenceSummary: '미수리 결함 13건, 균열 임계 초과 4개소(최대 1.82mm), CO₂ 경고 4건',
+      },
+      createdAt: dAgo(2), updatedAt: dAgo(2), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── MEDIUM ──────────────────────────────────────────────────────
+    {
+      _id: `riskScore:${ORG_ID}:rsk_complex`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'COMPLEX', targetId: COMPLEX_ID, targetName: '행복주택단지 전체',
+      // score = 48*0.30 + 42*0.25 + 38*0.20 + 40*0.15 + 55*0.10 = 14.4+10.5+7.6+6+5.5 = 44
+      score: 44, level: 'MEDIUM', confidence: 0.80,
+      calculatedAt: dAgo(1), isLatest: true,
+      subScores: {
+        defect:    { score: 48, weight: 0.30, contribution: 14.4,  details: '단지 전체 미수리 결함 30건 (이 중 CRITICAL 5건은 102동 집중)', dataPoints: 30 },
+        crack:     { score: 42, weight: 0.25, contribution: 10.5,  details: '균열 게이지 13개소 중 6개소 임계치 초과', dataPoints: 13 },
+        sensor:    { score: 38, weight: 0.20, contribution:  7.6,  details: 'IoT 센서 8종 중 이상 합계 28건 — 102동 집중', dataPoints: 28 },
+        complaint: { score: 40, weight: 0.15, contribution:  6.0,  details: '단지 전체 미해결 민원 37건 중 현재 진행 중 12건', dataPoints: 12 },
+        age:       { score: 55, weight: 0.10, contribution:  5.5,  details: '단지 평균 준공 27년 경과 (101동 26년, 102동 28년, 103동 27년)', dataPoints: 3 },
+      },
+      evidence: {
+        unrepairedDefects: 30, criticalDefects: 5, highDefects: 12,
+        crackThresholdExceedances: 6, maxCrackWidthMm: 2.30,
+        openComplaints: 12, urgentComplaints: 3,
+        activeAlerts: 8, criticalAlerts: 3,
+        sensorAnomalies: 28, sensorCriticalCount: 2,
+        assetAgeYears: 27, serviceLifeYears: 40, remainingLifeRatio: 0.33,
+        daysSinceLastInspection: 15,
+        lastInspectionDaysAgo: 15,
+        evidenceSummary: '단지 미수리 결함 30건(CRITICAL 5건), 균열 초과 6개소, IoT 이상 28건',
+      },
+      createdAt: dAgo(1), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    {
+      _id: `riskScore:${ORG_ID}:rsk_103_bldg`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'BUILDING', targetId: BLDG_103, targetName: '103동',
+      // score = 38*0.30 + 32*0.25 + 22*0.20 + 32*0.15 + 48*0.10 = 11.4+8+4.4+4.8+4.8 = 33.4 → 33
+      score: 33, level: 'MEDIUM', confidence: 0.82,
+      calculatedAt: dAgo(4), isLatest: true,
+      subScores: {
+        defect:    { score: 38, weight: 0.30, contribution: 11.4,  details: '미수리 결함 8건 — 옥상 방수층 들뜸·보도블록 침하 등 노후 결함 중심', dataPoints: 8 },
+        crack:     { score: 32, weight: 0.25, contribution:  8.0,  details: '게이지 GP-103-B1-W(기준 이내), GP-103-2F-E 경미한 증가 추세', dataPoints: 3 },
+        sensor:    { score: 22, weight: 0.20, contribution:  4.4,  details: '누수 감지기 1회 반응, 온도 이상 2건 (경미)', dataPoints: 3 },
+        complaint: { score: 32, weight: 0.15, contribution:  4.8,  details: '미해결 민원 3건 — 외벽 창틀 부식·보도블록 관련', dataPoints: 3 },
+        age:       { score: 48, weight: 0.10, contribution:  4.8,  details: '준공 27년 경과. 외부 도장 재시공 이력 없음 (도장 열화 진행)', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 8, criticalDefects: 0, highDefects: 2,
+        crackThresholdExceedances: 0, maxCrackWidthMm: 0.38,
+        openComplaints: 3, urgentComplaints: 0,
+        activeAlerts: 1, criticalAlerts: 0,
+        sensorAnomalies: 3, sensorCriticalCount: 0,
+        assetAgeYears: 27, serviceLifeYears: 40, remainingLifeRatio: 0.33,
+        daysSinceLastInspection: 62,
+        lastInspectionDaysAgo: 62,
+        evidenceSummary: '미수리 결함 8건, 균열 임계 이내, 노후화 진행 (27년)',
+      },
+      createdAt: dAgo(4), updatedAt: dAgo(4), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── LOW ─────────────────────────────────────────────────────────
+    {
+      _id: `riskScore:${ORG_ID}:rsk_lobby`,
+      docType: 'riskScore', orgId: ORG_ID, complexId: COMPLEX_ID,
+      targetType: 'ZONE', targetId: ZONE_LOBBY, targetName: '101동 공용 로비',
+      // score = 18*0.30 + 12*0.25 + 12*0.20 + 22*0.15 + 38*0.10 = 5.4+3+2.4+3.3+3.8 = 17.9 → 18
+      score: 18, level: 'LOW', confidence: 0.78,
+      calculatedAt: dAgo(5), isLatest: true,
+      subScores: {
+        defect:    { score: 18, weight: 0.30, contribution:  5.4,  details: '미수리 결함 2건 (바닥 타일 파손·경미한 침하). 보수 완료 이력 있음', dataPoints: 2 },
+        crack:     { score: 12, weight: 0.25, contribution:  3.0,  details: '균열 없음. 인접 계단실 게이지 GP-1F-STR-W 정상 (0.21mm)', dataPoints: 1 },
+        sensor:    { score: 12, weight: 0.20, contribution:  2.4,  details: '공용부 온도·습도 이상 없음. 화재 감지기 정상', dataPoints: 0 },
+        complaint: { score: 22, weight: 0.15, contribution:  3.3,  details: '미해결 민원 2건 — 전구 교체·출입문 소음 (경미)', dataPoints: 2 },
+        age:       { score: 38, weight: 0.10, contribution:  3.8,  details: '준공 26년. 로비 인테리어 리모델링 이력 2회 (2015, 2021년)', dataPoints: 1 },
+      },
+      evidence: {
+        unrepairedDefects: 2, criticalDefects: 0, highDefects: 0,
+        crackThresholdExceedances: 0,
+        openComplaints: 2, urgentComplaints: 0,
+        activeAlerts: 0, criticalAlerts: 0,
+        sensorAnomalies: 0, sensorCriticalCount: 0,
+        assetAgeYears: 26, serviceLifeYears: 40, remainingLifeRatio: 0.35,
+        daysSinceLastInspection: 72,
+        lastInspectionDaysAgo: 72,
+        evidenceSummary: '미수리 결함 2건(경미), 균열 이상 없음, 센서 정상',
+      },
+      createdAt: dAgo(5), updatedAt: dAgo(5), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+  ];
+
+  for (const doc of riskScores) await upsert(db, doc);
+
+  // ── 장기수선 권장 8건 ──────────────────────────────────────────────
+  const recommendations = [
+    // ── CRITICAL 102동 → APPROVED ────────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_102_bldg`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_102_bldg`,
+      targetType: 'BUILDING', targetId: BLDG_102, targetName: '102동',
+      riskScore: 81, riskLevel: 'CRITICAL',
+      maintenanceType: 'IMMEDIATE_REPAIR',
+      priority: 'IMMEDIATE',
+      suggestedTimeline: { earliest: ad(0), latest: ad(14), label: '즉시 (2주 이내)' },
+      estimatedCostBand: { min: 35_000_000, max: 80_000_000, currency: 'KRW', basis: '외벽 긴급 보수·구조 보강 공사 실적 기반' },
+      evidenceSummary: '미수리 결함 18건(CRITICAL 4건), 균열 임계 초과 6개소(최대 2.10mm), 센서 이상 13건',
+      reasoning: [
+        '종합 위험도 81점 (CRITICAL) — 즉시 구조 보강·전문가 정밀진단 필요',
+        '외벽 박락(4.2㎡) 및 구조 균열(2.1mm) 동시 발생 — 보행자 낙하 위험 현존',
+        '균열 진행 속도 가속화 (최근 3일 +0.37mm) — 방치 시 구조 내력 저하 불가역',
+        '법정 시설 안전점검 의무 (시특법 제11조) 미이행 위험 — 행정 처분 대상 가능성',
+        '누수→철근 부식 연쇄 진행 차단을 위한 방수층 긴급 재시공 병행 권고',
+      ],
+      status: 'APPROVED',
+      approvedBy: USER_REVIEWER, approvedAt: dAgo(1),
+      notes: '구조안전진단 전문가 파견 완료 (2026-04-09). 에폭시 주입 업체 견적 수령 중.',
+      createdAt: dAgo(2), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: USER_REVIEWER,
+    },
+    // ── CRITICAL 102동 북측 외벽 → IN_PROGRESS ───────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_102_nwall`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_102_nwall`,
+      targetType: 'ZONE', targetId: `zone:${ORG_ID}:zone_102_nwall`, targetName: '102동 북측 외벽',
+      riskScore: 86, riskLevel: 'CRITICAL',
+      maintenanceType: 'IMMEDIATE_REPAIR',
+      priority: 'IMMEDIATE',
+      suggestedTimeline: { earliest: ad(0), latest: ad(7), label: '즉시 (1주 이내)' },
+      estimatedCostBand: { min: 20_000_000, max: 55_000_000, currency: 'KRW', basis: '외벽 균열 보수 및 박락 방지 공사 실적 기반' },
+      evidenceSummary: '미수리 결함 5건(CRITICAL 3건), 균열 임계 초과 4개소(최대 2.30mm), 진동 센서 이상 2건',
+      reasoning: [
+        '종합 위험도 86점 — 단지 내 최고 위험 구역. 구조 전문가 즉시 현장 투입 완료',
+        '균열폭 2.30mm — KCS 41 55 02 허용 기준(0.3mm) 7.7배 초과, 거동 진행형 확인',
+        '8~12층 고층부 균열 — 드론 정밀촬영 및 3D 스캔 추가 조사 병행 진행 중',
+        '외벽 낙하물 위험 — 102동 북측 보행로 접근 통제 및 방호 펜스 설치 완료',
+        'U-컷 충전 공법 + 탄소섬유 보강 방안 적용 예정 — 3개 공법 비교 견적 완료',
+      ],
+      status: 'IN_PROGRESS',
+      approvedBy: USER_REVIEWER, approvedAt: dAgo(3),
+      linkedWorkOrderId: `workOrder:${ORG_ID}:wo_full_007`,
+      notes: '방호 펜스 설치 완료. 보수 공사 착공 예정 2026-04-22.',
+      createdAt: dAgo(4), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: USER_REVIEWER,
+    },
+    // ── HIGH 101동 → APPROVED ─────────────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_101_bldg`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_101_bldg`,
+      targetType: 'BUILDING', targetId: BLDG_101, targetName: '101동',
+      riskScore: 73, riskLevel: 'HIGH',
+      maintenanceType: 'SHORT_TERM_REPAIR',
+      priority: 'HIGH',
+      suggestedTimeline: { earliest: ad(7), latest: ad(90), label: '단기 (1~3개월 이내)' },
+      estimatedCostBand: { min: 8_000_000, max: 22_000_000, currency: 'KRW', basis: '지하주차장 균열 보수 및 방수 공사 단가 기반' },
+      evidenceSummary: '미수리 결함 16건(CRITICAL 1건), 균열 임계 초과 3개소(최대 1.82mm), CO₂ 센서 이상 12건',
+      reasoning: [
+        '종합 위험도 73점 (HIGH) — C-3 기둥 균열 임계치 82% 초과로 즉각 에폭시 주입 필요',
+        '지하주차장 CO₂ 농도 이상 12건 — 환기 시스템 점검 및 팬 용량 검토 병행 권고',
+        '지하방수층 노후화 (8년 경과) — 천장 누수 및 철근 부식 예방을 위한 방수 재시공 포함',
+        '게이지 GP-B2-C3-N 일일 점검 전환 및 이상 감지 시 즉시 대응 체계 구축',
+      ],
+      status: 'APPROVED',
+      approvedBy: USER_REVIEWER, approvedAt: dAgo(5),
+      notes: '에폭시 주입 전문업체 (주)한국보수전문과 계약 완료. 착공 2026-04-25 예정.',
+      createdAt: dAgo(6), updatedAt: dAgo(5), createdBy: 'system:seed', updatedBy: USER_REVIEWER,
+    },
+    // ── HIGH 101동 엘리베이터 → PENDING ─────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_101_elev`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_101_elev`,
+      targetType: 'ASSET', targetId: `facilityAsset:${ORG_ID}:ast_elevator_101`, targetName: '101동 엘리베이터',
+      riskScore: 57, riskLevel: 'HIGH',
+      maintenanceType: 'REPLACEMENT',
+      priority: 'HIGH',
+      suggestedTimeline: { earliest: ad(30), latest: ad(180), label: '단기 (1~6개월 이내)' },
+      estimatedCostBand: { min: 45_000_000, max: 90_000_000, currency: 'KRW', basis: '승강기 교체 장기수선계획 단가 기반 (현대·오티스·미쓰비시 견적)' },
+      evidenceSummary: '법정 내용연수 초과 26년, 모터 IoT 이상 14건, 엘리베이터 민원 6건',
+      reasoning: [
+        '법정 내용연수(25년) 1년 초과 — 장기수선충당금 교체 항목 반영 대상',
+        '모터 과열·전류 스파이크 IoT 이상 14건 — 부품 노후화로 인한 고장 위험 상승',
+        '입주민 민원 6건 (최근 3개월) — 소음·멈춤 반복으로 안전 사고 전조 단계',
+        '부분 수리 대비 교체 비용 효율성 분석 결과 교체가 10년 기준 30% 절감',
+        '한국승강기안전공단 정기검사 전 교체 착수 권고 — 검사 불합격 위험 회피',
+      ],
+      status: 'PENDING',
+      createdAt: dAgo(3), updatedAt: dAgo(3), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── HIGH 지하주차장 → PENDING ─────────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_parking`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_parking`,
+      targetType: 'ZONE', targetId: ZONE_PKG_A, targetName: '지하주차장 A구역',
+      riskScore: 57, riskLevel: 'HIGH',
+      maintenanceType: 'SHORT_TERM_REPAIR',
+      priority: 'HIGH',
+      suggestedTimeline: { earliest: ad(14), latest: ad(120), label: '단기 (2주~4개월 이내)' },
+      estimatedCostBand: { min: 6_000_000, max: 18_000_000, currency: 'KRW', basis: '지하주차장 균열·방수 복합 보수 유사 공종 기반' },
+      evidenceSummary: '미수리 결함 13건, 균열 임계 초과 4개소(최대 1.82mm), CO₂ 경고 4건',
+      reasoning: [
+        '지하주차장 A구역 균열 임계 초과 4개소 — 에폭시 주입 및 표면 방수 처리 우선 시행',
+        'CO₂ 농도 이상 4건 — 강제 환기팬 용량 재검토 및 센서 교정 포함',
+        '지하방수층 노후 (8년 경과) — 방수층 전면 재시공 계획 수립 권고',
+        '차량 진출입로 난간 부식 — 방청 도장 및 손상 구간 교체 포함',
+      ],
+      status: 'PENDING',
+      createdAt: dAgo(2), updatedAt: dAgo(2), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── MEDIUM 단지 전체 → DEFERRED ──────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_complex`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_complex`,
+      targetType: 'COMPLEX', targetId: COMPLEX_ID, targetName: '행복주택단지 전체',
+      riskScore: 44, riskLevel: 'MEDIUM',
+      maintenanceType: 'SCHEDULED_MAINTENANCE',
+      priority: 'MEDIUM',
+      suggestedTimeline: { earliest: ad(60), latest: ad(365), label: '계획 (2개월~12개월 이내)' },
+      estimatedCostBand: { min: 12_000_000, max: 35_000_000, currency: 'KRW', basis: '연간 예방 유지관리 통합 계획 단가 기반' },
+      evidenceSummary: '단지 미수리 결함 30건(CRITICAL 5건), 균열 초과 6개소, IoT 이상 28건',
+      reasoning: [
+        '단지 종합 위험도 44점 (MEDIUM) — 102동 집중 위험 해소 후 단지 전체 관리 체계 정비',
+        '연간 예방 유지관리 계획(PMP) 수립 — 동별 우선순위 기반 순차 시행 권고',
+        '공용 설비(엘리베이터·소방·전기) 정기점검 주기 단축 (1→2회/년) 검토',
+        '빅데이터 기반 이상 탐지 고도화 — AI 모델 재학습 주기 조정 (분기 → 월별)',
+      ],
+      status: 'DEFERRED',
+      deferredReason: '102동 긴급 보수 공사 예산 우선 집행으로 단지 전체 계획은 하반기 예산 확정 후 재검토',
+      deferredUntil: ad(120),
+      createdAt: dAgo(1), updatedAt: dAgo(1), createdBy: 'system:seed', updatedBy: USER_REVIEWER,
+    },
+    // ── MEDIUM 103동 → PENDING ───────────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_103_bldg`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_103_bldg`,
+      targetType: 'BUILDING', targetId: BLDG_103, targetName: '103동',
+      riskScore: 33, riskLevel: 'MEDIUM',
+      maintenanceType: 'SCHEDULED_MAINTENANCE',
+      priority: 'MEDIUM',
+      suggestedTimeline: { earliest: ad(30), latest: ad(270), label: '계획 (1~9개월 이내)' },
+      estimatedCostBand: { min: 3_000_000, max: 9_000_000, currency: 'KRW', basis: '노후화 예방 유지보수 단가 기반' },
+      evidenceSummary: '미수리 결함 8건, 균열 임계 이내, 노후화 진행 (27년)',
+      reasoning: [
+        '103동 종합 위험도 33점 (MEDIUM) — 현 시점 위급하지 않으나 노후화 대응 선제 관리 필요',
+        '옥상 방수층 들뜸·균열 — 장마철 전 방수층 정밀 점검 및 부분 재시공 권고',
+        '외벽 창틀 부식 1~5층 남측 — 방청 도장 및 코킹 재시공으로 누수 예방 가능',
+        '보도블록 침하 진입구 앞 2m — 입주민 안전사고 예방을 위한 조기 정비 포함',
+      ],
+      status: 'PENDING',
+      createdAt: dAgo(4), updatedAt: dAgo(4), createdBy: 'system:seed', updatedBy: 'system:seed',
+    },
+    // ── LOW 공용 로비 → COMPLETED ────────────────────────────────────
+    {
+      _id: `maintenanceRecommendation:${ORG_ID}:rec_lobby`,
+      docType: 'maintenanceRecommendation', orgId: ORG_ID, complexId: COMPLEX_ID,
+      riskScoreId: `riskScore:${ORG_ID}:rsk_lobby`,
+      targetType: 'ZONE', targetId: ZONE_LOBBY, targetName: '101동 공용 로비',
+      riskScore: 18, riskLevel: 'LOW',
+      maintenanceType: 'ROUTINE_INSPECTION',
+      priority: 'LOW',
+      suggestedTimeline: { earliest: ad(90), latest: ad(365), label: '일상 (3~12개월 이내)' },
+      estimatedCostBand: { min: 200_000, max: 800_000, currency: 'KRW', basis: '정기 점검 용역 및 경미한 보수 단가 기반' },
+      evidenceSummary: '미수리 결함 2건(경미), 균열 이상 없음, 센서 정상',
+      reasoning: [
+        '공용 로비 위험도 18점 (LOW) — 현 관리 수준 유지 및 분기 정기 점검 지속',
+        '바닥 타일 파손 1개소 (6번칸 앞) — 보행자 안전을 위한 조기 교체 권고',
+        '출입문 소음 — 경첩 및 도어클로저 윤활 점검 포함',
+      ],
+      status: 'COMPLETED',
+      approvedBy: USER_INSP1, approvedAt: dAgo(20),
+      notes: '바닥 타일 교체 완료 (2026-03-28). 출입문 경첩 교체 완료 (2026-03-30).',
+      createdAt: dAgo(25), updatedAt: dAgo(15), createdBy: 'system:seed', updatedBy: USER_INSP1,
+    },
+  ];
+
+  for (const doc of recommendations) await upsert(db, doc);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// AI 결함 탐지 후보 + AI 진단 의견 시드
+// ─────────────────────────────────────────────────────────────────────
+async function seedAiDetection(db: nano.DocumentScope<any>) {
+  const CPLX = COMPLEX_ID;
+
+  const DEF_001 = `defect:${ORG_ID}:def_001`;
+  const DEF_003 = `defect:${ORG_ID}:def_003`;
+  const DEF_009 = `defect:${ORG_ID}:def_009`;
+  const DEF_F02 = `defect:${ORG_ID}:def_f02`;
+
+  const SESS_101_B2   = `inspectionSession:${ORG_ID}:sess_101_b2`;
+  const SESS_2026_EMG = `inspectionSession:${ORG_ID}:sess_2026_emg`;
+  const GAUGE_001     = `crackGaugePoint:${ORG_ID}:gauge_001`;
+  const GAUGE_013     = `crackGaugePoint:${ORG_ID}:gauge_013`;
+
+  const candidates = [
+    // ── AUTO_ACCEPT (confidence ≥ 0.90) ──────────────────────────────
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_a001`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_101,
+      sourceType: 'DRONE_IMAGE',
+      sourceMediaId: `media:${ORG_ID}:media_drone_101_001`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0301`,
+      storageKey: 'drones/2026/03/01/101/frame_0042.jpg',
+      defectType: 'CRACK', confidence: 0.94, confidenceLevel: 'AUTO_ACCEPT',
+      bbox: [0.12, 0.38, 0.22, 0.41], suggestedSeverity: 'MEDIUM',
+      aiCaption: 'RC 외벽 수직 건조수축 균열 — 폭 0.4 mm 추정. KCS 41 55 02 허용 기준(0.3 mm) 초과.',
+      kcsStandardRef: 'KCS 41 55 02', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PROMOTED', reviewedBy: USER_REVIEWER, reviewedAt: dAgo(18),
+      reviewNote: '현장 확인 후 Defect 승격 처리', promotedDefectId: DEF_001,
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_001`,
+      createdAt: dAgo(20), updatedAt: dAgo(18),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_a002`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_101,
+      sourceType: 'DRONE_IMAGE',
+      sourceMediaId: `media:${ORG_ID}:media_drone_101_002`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0301`,
+      storageKey: 'drones/2026/03/01/101/frame_0085.jpg',
+      defectType: 'LEAK', confidence: 0.91, confidenceLevel: 'AUTO_ACCEPT',
+      bbox: [0.31, 0.52, 0.28, 0.18], suggestedSeverity: 'HIGH',
+      aiCaption: '외벽 누수 흔적 — 철근 부식 유발 가능성. 누수 면적 약 1.2 ㎡ 추정.',
+      kcsStandardRef: 'KCS 41 40 06', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PROMOTED', reviewedBy: USER_REVIEWER, reviewedAt: dAgo(16),
+      reviewNote: '누수 범위 현장 재확인, Defect 승격', promotedDefectId: DEF_003,
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_001`,
+      createdAt: dAgo(20), updatedAt: dAgo(16),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_a003`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_102,
+      sourceType: 'DRONE_FRAME',
+      sourceMediaId: `media:${ORG_ID}:media_drone_102_001`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0315`,
+      sourceFrameId: `mediaFrame:${ORG_ID}:frame_102_0012`,
+      storageKey: 'drones/2026/03/15/102/frame_0012.jpg',
+      defectType: 'FIRE_RISK_CLADDING', confidence: 0.93, confidenceLevel: 'AUTO_ACCEPT',
+      bbox: [0.05, 0.10, 0.90, 0.35], suggestedSeverity: 'CRITICAL',
+      aiCaption: '화재위험 외장 패널 의심 — 알루미늄 복합 패널 과열 변형 흔적. 즉시 정밀 점검 필요.',
+      kcsStandardRef: 'KCS 41 55 08', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'APPROVED', reviewedBy: USER_REVIEWER, reviewedAt: dAgo(8),
+      reviewNote: '전문가 현장 확인 예정. 임시 접근 제한 조치',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_002`,
+      createdAt: dAgo(10), updatedAt: dAgo(8),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_a004`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_102,
+      sourceType: 'MOBILE_PHOTO',
+      sourceMediaId: `media:${ORG_ID}:media_mobile_102_001`,
+      storageKey: 'mobile/2026/03/20/102/photo_0003.jpg',
+      defectType: 'DELAMINATION', confidence: 0.90, confidenceLevel: 'AUTO_ACCEPT',
+      bbox: [0.20, 0.30, 0.55, 0.45], suggestedSeverity: 'CRITICAL',
+      aiCaption: '외벽 콘크리트 박락 — 면적 약 4.2 ㎡, 두께 손실 30 mm. 보행자 낙하물 위험.',
+      kcsStandardRef: 'KCS 41 55 02', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PROMOTED', reviewedBy: USER_REVIEWER, reviewedAt: dAgo(6),
+      reviewNote: '즉시 보수 조치 필요, Defect 승격 완료', promotedDefectId: DEF_009,
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_003`,
+      createdAt: dAgo(7), updatedAt: dAgo(6),
+    },
+    // ── REQUIRES_REVIEW (confidence 0.80 ~ 0.89) ─────────────────────
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_r001`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_101,
+      sourceType: 'DRONE_IMAGE',
+      sourceMediaId: `media:${ORG_ID}:media_drone_101_003`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0301`,
+      storageKey: 'drones/2026/03/01/101/frame_0123.jpg',
+      defectType: 'CRACK', confidence: 0.87, confidenceLevel: 'REQUIRES_REVIEW',
+      bbox: [0.45, 0.20, 0.18, 0.52], suggestedSeverity: 'LOW',
+      aiCaption: 'RC 슬래브 하면 사선 균열 — 폭 0.2 mm 미만. KCS 기준 이내이나 모니터링 권고.',
+      kcsStandardRef: 'KCS 41 55 02', kcsExceedsLimit: false,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_001`,
+      createdAt: dAgo(5), updatedAt: dAgo(5),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_r002`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_101,
+      sourceType: 'DRONE_FRAME',
+      sourceMediaId: `media:${ORG_ID}:media_drone_101_004`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0301`,
+      sourceFrameId: `mediaFrame:${ORG_ID}:frame_101_0045`,
+      storageKey: 'drones/2026/03/01/101/frame_0045.jpg',
+      defectType: 'CORROSION', confidence: 0.88, confidenceLevel: 'REQUIRES_REVIEW',
+      bbox: [0.60, 0.40, 0.25, 0.30], suggestedSeverity: 'CRITICAL',
+      aiCaption: '철근 노출 및 부식 — 단면 손실 추정. 구조 내력 저하 위험. 정밀안전진단 필요.',
+      kcsStandardRef: 'KCS 14 20 22', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_001`,
+      createdAt: dAgo(5), updatedAt: dAgo(5),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_r003`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_103,
+      sourceType: 'MOBILE_PHOTO',
+      sourceMediaId: `media:${ORG_ID}:media_mobile_103_001`,
+      storageKey: 'mobile/2026/03/10/103/photo_0007.jpg',
+      defectType: 'LEAK', confidence: 0.83, confidenceLevel: 'REQUIRES_REVIEW',
+      bbox: [0.10, 0.55, 0.65, 0.30], suggestedSeverity: 'HIGH',
+      aiCaption: '103동 지하1층 서측 벽체 누수 — 침수 흔적 및 방수층 손상 추정. 면적 약 3.8 ㎡.',
+      kcsStandardRef: 'KCS 41 40 06', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PROMOTED', reviewedBy: USER_INSP2, reviewedAt: dAgo(4),
+      reviewNote: '현장 확인 후 def_f02 연결', promotedDefectId: DEF_F02,
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_004`,
+      createdAt: dAgo(6), updatedAt: dAgo(4),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_r004`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_102,
+      sourceType: 'DRONE_IMAGE',
+      sourceMediaId: `media:${ORG_ID}:media_drone_102_002`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0315`,
+      storageKey: 'drones/2026/03/15/102/frame_0034.jpg',
+      defectType: 'CRACK', confidence: 0.82, confidenceLevel: 'REQUIRES_REVIEW',
+      bbox: [0.08, 0.15, 0.12, 0.70], suggestedSeverity: 'HIGH',
+      aiCaption: '102동 북측 외벽 수직 균열 — 폭 0.7 mm 추정. 거동 진행형 가능성. 주기 모니터링 요망.',
+      kcsStandardRef: 'KCS 41 55 02', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'REJECTED', reviewedBy: USER_REVIEWER, reviewedAt: dAgo(3),
+      reviewNote: '기존 def_f15와 동일 위치 — 중복 탐지로 기각',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_002`,
+      createdAt: dAgo(5), updatedAt: dAgo(3),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_r005`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_103,
+      sourceType: 'MOBILE_PHOTO',
+      sourceMediaId: `media:${ORG_ID}:media_mobile_103_002`,
+      storageKey: 'mobile/2026/03/25/103/photo_0011.jpg',
+      defectType: 'DELAMINATION', confidence: 0.82, confidenceLevel: 'REQUIRES_REVIEW',
+      bbox: [0.25, 0.30, 0.50, 0.40], suggestedSeverity: 'HIGH',
+      aiCaption: '마감 모르타르 박락 — 면적 약 0.6 ㎡. 하부 콘크리트 손상 여부 확인 필요.',
+      kcsStandardRef: 'KCS 41 55 02', kcsExceedsLimit: true,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_005`,
+      createdAt: dAgo(2), updatedAt: dAgo(2),
+    },
+    // ── MANUAL_REQUIRED (confidence < 0.80) ──────────────────────────
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_m001`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_101,
+      sourceType: 'DRONE_IMAGE',
+      sourceMediaId: `media:${ORG_ID}:media_drone_101_005`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0301`,
+      storageKey: 'drones/2026/03/01/101/frame_0178.jpg',
+      defectType: 'EFFLORESCENCE', confidence: 0.79, confidenceLevel: 'MANUAL_REQUIRED',
+      bbox: [0.05, 0.60, 0.80, 0.25], suggestedSeverity: 'LOW',
+      aiCaption: '외벽 백태 — 누수 경로 추적 필요. 저신뢰도로 수동 확인 권고.',
+      kcsStandardRef: 'KCS 41 55 04', kcsExceedsLimit: false,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_001`,
+      createdAt: dAgo(5), updatedAt: dAgo(5),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_m002`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_102,
+      sourceType: 'DRONE_FRAME',
+      sourceMediaId: `media:${ORG_ID}:media_drone_102_003`,
+      sourceMissionId: `droneMission:${ORG_ID}:msn_2026_0315`,
+      sourceFrameId: `mediaFrame:${ORG_ID}:frame_102_0057`,
+      storageKey: 'drones/2026/03/15/102/frame_0057.jpg',
+      defectType: 'SPOILING', confidence: 0.76, confidenceLevel: 'MANUAL_REQUIRED',
+      bbox: [0.30, 0.25, 0.40, 0.50], suggestedSeverity: 'LOW',
+      aiCaption: '외벽 오손/오염 — 미관 결함. 저신뢰도로 현장 수동 점검 필요.',
+      kcsStandardRef: 'KCS 41 55 03', kcsExceedsLimit: false,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_002`,
+      createdAt: dAgo(4), updatedAt: dAgo(4),
+    },
+    {
+      _id: `defectCandidate:${ORG_ID}:cand_m003`, docType: 'defectCandidate',
+      orgId: ORG_ID, complexId: CPLX, buildingId: BLDG_103,
+      sourceType: 'MOBILE_PHOTO',
+      sourceMediaId: `media:${ORG_ID}:media_mobile_103_003`,
+      storageKey: 'mobile/2026/04/01/103/photo_0002.jpg',
+      defectType: 'OTHER', confidence: 0.65, confidenceLevel: 'MANUAL_REQUIRED',
+      bbox: [0.40, 0.40, 0.20, 0.20], suggestedSeverity: 'LOW',
+      aiCaption: '미분류 이상 징후 — 신뢰도 낮음. 전문가 현장 육안 확인 필요.',
+      kcsExceedsLimit: false,
+      modelVersion: 'mock-v0.1', detectionMethod: 'MOCK',
+      reviewStatus: 'PENDING',
+      detectionJobId: `asyncJob:${ORG_ID}:job_det_006`,
+      createdAt: dAgo(1), updatedAt: dAgo(1),
+    },
+  ];
+
+  const opinions = [
+    // ── IMMEDIATE ──────────────────────────────────────────────────────
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_001`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'INSPECTION_SESSION', targetId: SESS_2026_EMG, sessionId: SESS_2026_EMG,
+      defectIds: [DEF_009, `defect:${ORG_ID}:def_010`, `defect:${ORG_ID}:def_011`, `defect:${ORG_ID}:def_012`],
+      contextSummary: { defectCount: 4, crackMeasurementCount: 3, complaintCount: 2, alertCount: 2, highestSeverity: 'CRITICAL', periodFrom: dAgo(30), periodTo: now },
+      summary: '102동 외벽 복합 결함 — 구조 균열·박락·누수 동시 발생. 즉시 안전 점검 및 접근 통제 필요.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 종합 평가\n102동 남측 및 동측 외벽에서 구조 균열(폭 0.7~1.2 mm), 콘크리트 박락(면적 4.2 ㎡), 누수 흔적이 동시 확인되었습니다. KCS 41 55 02에 따른 허용 균열폭(0.3 mm)을 대폭 초과하며, 복합 결함 양상은 구조 내력 저하를 강하게 시사합니다.\n\n### 2. 위험 요인\n- 콘크리트 박락에 의한 보행자 낙하물 위험 (CRITICAL)\n- 균열 진행 시 슬래브 접합부 분리 가능성\n- 누수→철근 부식 진행 가속화 우려\n\n### 3. 긴급 조치 권고\n1. **즉시**: 102동 남측 5~7층 구간 접근 통제 테이프·방호 펜스 설치\n2. **24시간 이내**: 구조안전진단 전문가 현장 파견 요청\n3. **1주 이내**: 외벽 균열 모니터링 게이지 추가 설치\n\n### 4. 관련 기준\n- KCS 41 55 02: 콘크리트 구조물 균열 허용폭 기준\n- KCS 41 40 06: 방수 및 누수 관리 기준\n- 시설물의 안전 및 유지관리에 관한 특별법 제11조',
+      urgency: 'IMMEDIATE', estimatedPriorityScore: 95, confidence: 0.88,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1842,
+      status: 'APPROVED', processingTimeMs: 2310,
+      reviewedBy: USER_REVIEWER, reviewedAt: dAgo(9), reviewNote: '구조안전진단 전문가 파견 요청 완료 (2026-04-09)',
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_001`,
+      createdAt: dAgo(10), updatedAt: dAgo(9), createdBy: USER_INSP1,
+    },
+    // ── URGENT ─────────────────────────────────────────────────────────
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_002`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'DEFECT', targetId: DEF_001, defectIds: [DEF_001],
+      contextSummary: { defectCount: 1, crackMeasurementCount: 6, complaintCount: 0, alertCount: 1, highestSeverity: 'CRITICAL', periodFrom: dAgo(60), periodTo: now },
+      summary: '101동 지하주차장 C-3 기둥 수직 균열 — 폭 1.82 mm로 임계치 초과 진행 중. 1주 이내 보수 필요.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 결함 개요\n지하2층 A구역 C-3 기둥 북면 하단부에서 수직 균열이 확인되었습니다. 균열 게이지 측정 결과 최근 55일간 0.35 mm → 1.82 mm로 빠르게 확대되었습니다.\n\n### 2. 위험 분석\n- 균열 폭 1.82 mm — KCS 41 55 02 허용 기준(1.0 mm) 82% 초과\n- 확대 속도: 최근 3일간 0.37 mm/3일 (급격한 가속)\n- 철근 노출 징후 확인 → 염해·부식 진행 가능성\n\n### 3. 보수 권고\n1. **즉시**: 게이지 일일 점검 전환\n2. **3일 이내**: 에폭시 주입 보수 또는 U-컷 충전 공법 적용\n3. **1주 이내**: 기둥 전체 탄산화 및 염해 조사\n\n### 4. 예상 비용\n- 에폭시 주입 공법: 약 150만~250만 원 (단면 처리 포함)',
+      urgency: 'URGENT', estimatedPriorityScore: 82, confidence: 0.85,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1520,
+      status: 'REVIEWING', processingTimeMs: 1980,
+      reviewedBy: USER_REVIEWER, reviewedAt: dAgo(5), reviewNote: '검토 중 — 보수 공법 선정 협의 필요',
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_002`,
+      createdAt: dAgo(6), updatedAt: dAgo(5), createdBy: USER_INSP1,
+    },
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_003`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'GAUGE_POINT', targetId: GAUGE_013,
+      contextSummary: { defectCount: 1, crackMeasurementCount: 4, complaintCount: 0, alertCount: 1, highestSeverity: 'CRITICAL', periodFrom: dAgo(100), periodTo: now },
+      summary: '102동 북측 외벽 게이지 GP-102-N8F — 균열 거동 진행 확인. 긴급 구조 정밀 진단 필요.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 균열 거동 분석\n게이지 GP-102-N8F(기준 0.5 mm, 임계치 1.5 mm)의 최근 측정값이 임계치를 초과하였습니다. 102동 북측 외벽 8~12층 구조 균열은 활동성(진행형)으로 분류됩니다.\n\n### 2. 위험도 평가\n- 거동 속도 분석: 비선형 증가 패턴 → 구조적 원인 가능성\n- 연계 결함: def_f15(폭 2.1 mm, 길이 680 mm)와 동일 위치\n- 고층부 위치로 드론 정밀 촬영 추가 필요\n\n### 3. 권고 조치\n1. **즉시**: 임시 보강재 설치 검토\n2. **1주 이내**: 3D 균열 측정 정밀 조사\n3. **1개월 이내**: 구조 해석 및 보강 설계 착수',
+      urgency: 'URGENT', estimatedPriorityScore: 78, confidence: 0.80,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1340,
+      status: 'DRAFT', processingTimeMs: 1760,
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_003`,
+      createdAt: dAgo(2), updatedAt: dAgo(2), createdBy: USER_INSP2,
+    },
+    // ── ROUTINE ────────────────────────────────────────────────────────
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_004`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'INSPECTION_SESSION', targetId: SESS_101_B2, sessionId: SESS_101_B2,
+      defectIds: [`defect:${ORG_ID}:def_002`, `defect:${ORG_ID}:def_004`, `defect:${ORG_ID}:def_005`, `defect:${ORG_ID}:def_013`, `defect:${ORG_ID}:def_014`],
+      contextSummary: { defectCount: 5, crackMeasurementCount: 8, complaintCount: 1, alertCount: 0, highestSeverity: 'HIGH', periodFrom: dAgo(30), periodTo: now },
+      summary: '101동 지하2층 B구역 결함 — 균열·백태·부식 복합 발생. 1개월 이내 계획 보수 권고.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 종합 평가\n101동 지하2층에서 균열(D-4 기둥), 백태(B구역 기둥), 철제 난간 부식, 경계블록 변형이 복합적으로 발생했습니다. 개별 결함은 MEDIUM~HIGH 수준이나 복합 발생으로 종합 위험도가 상승합니다.\n\n### 2. 세부 분석\n- def_002: 사선 균열 0.8 mm — 전단력에 의한 균열 패턴. 하중 점검 필요.\n- def_004: 기둥 백태 — 염해 조기 단계. 방수 처리 우선.\n- def_005: 난간 부식 — 도장 및 방청 처리로 진행 억제 가능.\n\n### 3. 보수 계획 권고\n1. 균열 에폭시 주입 (def_002): 예상 180~280만 원\n2. 방수 도막 재도포 (def_004, def_014): 예상 250~400만 원\n3. 난간 방청 도장 (def_005): 예상 80~150만 원',
+      urgency: 'ROUTINE', estimatedPriorityScore: 52, confidence: 0.75,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1620,
+      status: 'APPROVED', processingTimeMs: 2100,
+      reviewedBy: USER_REVIEWER, reviewedAt: dAgo(13), reviewNote: '보수 일정 다음 달 정기 유지보수 포함 예정',
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_004`,
+      createdAt: dAgo(15), updatedAt: dAgo(13), createdBy: USER_INSP1,
+    },
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_005`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'GAUGE_POINT', targetId: GAUGE_001,
+      contextSummary: { defectCount: 1, crackMeasurementCount: 6, complaintCount: 0, alertCount: 0, highestSeverity: 'MEDIUM', periodFrom: dAgo(55), periodTo: now },
+      summary: '게이지 GP-B2-C3-N 균열 폭 1.82 mm — 임계치 초과. 구조 내력 영향 가능성으로 정기 정밀 조사 권고.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 측정 이력 분석\n- 55일 전: 0.35 mm (기준치 이내)\n- 현재: 1.82 mm (임계치 1.0 mm 82% 초과)\n- 평균 증가율: 0.027 mm/일\n\n### 2. 모니터링 권고\n균열 확대 속도가 경미한 수준에서 시작되어 최근 가속 증가합니다. 에폭시 주입 보수 후 6개월 추적 관찰을 권장합니다.\n\n### 3. KCS 기준 적용\n- KCS 41 55 02 기준 허용폭 0.3 mm 대비 6.1배 초과\n- 정밀안전점검 수준의 조사 검토 필요',
+      urgency: 'ROUTINE', estimatedPriorityScore: 60, confidence: 0.78,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1180,
+      status: 'DRAFT', processingTimeMs: 1540,
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_005`,
+      createdAt: dAgo(1), updatedAt: dAgo(1), createdBy: USER_INSP2,
+    },
+    // ── PLANNED ────────────────────────────────────────────────────────
+    {
+      _id: `diagnosisOpinion:${ORG_ID}:diag_006`, docType: 'diagnosisOpinion',
+      orgId: ORG_ID, complexId: CPLX,
+      targetType: 'COMPLEX', targetId: CPLX,
+      defectIds: [`defect:${ORG_ID}:def_f07`, `defect:${ORG_ID}:def_f13`, `defect:${ORG_ID}:def_f14`],
+      contextSummary: { defectCount: 3, crackMeasurementCount: 4, complaintCount: 5, alertCount: 0, highestSeverity: 'MEDIUM', periodFrom: dAgo(90), periodTo: now },
+      summary: '단지 전체 노후화 진행 — 백태·침하·부식 산발 발생. 연간 예방 유지관리 계획 수립 권고.',
+      technicalOpinionDraft: '## AI 진단 의견 (초안)\n\n### 1. 단지 전체 현황 요약\n103동 외부 보도블록 침하, 창틀 부식, 102동 지하1층 백태 등 노후화에 따른 경미한 결함이 산발적으로 발생하고 있습니다. 현 시점의 긴급 위험은 낮으나, 방치 시 복합 결함으로 악화될 가능성이 있습니다.\n\n### 2. 권고 방향\n- 연간 예방 유지관리(PMP) 계획에 포함하여 체계적으로 관리\n- 백태 구간 방수 성능 정기 점검 주기 단축 (1회/년 → 2회/년)\n- 외부 금속재 도장 및 방청 처리 포함 (3년 주기)\n\n### 3. 예산 계획 참고\n- 보도블록 침하 교체: 약 50~80만 원\n- 창틀 방청 도장: 약 200~350만 원\n- 백태 방수 처리: 약 180~300만 원\n- 합계 예상: 430~730만 원 (분기 분할 시행 가능)',
+      urgency: 'PLANNED', estimatedPriorityScore: 30, confidence: 0.68,
+      model: 'MOCK_LLM', modelVersion: 'mock-v0.1', promptVersion: 'diagnosis-v1.0', tokensUsed: 1720,
+      status: 'APPROVED', processingTimeMs: 2250,
+      reviewedBy: USER_REVIEWER, reviewedAt: dAgo(20), reviewNote: '연간 유지보수 예산 계획에 반영 완료',
+      diagnosisJobId: `asyncJob:${ORG_ID}:job_diag_006`,
+      createdAt: dAgo(22), updatedAt: dAgo(20), createdBy: USER_INSP1,
+    },
+  ];
+
+  for (const doc of candidates) await upsert(db, doc);
+  console.log(`  AI 결함 탐지 후보 ${candidates.length}건 완료`);
+
+  for (const doc of opinions) await upsert(db, doc);
+  console.log(`  AI 진단 의견 ${opinions.length}건 완료`);
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────────────
 async function seed() {
@@ -1442,114 +2183,13 @@ async function seed() {
   console.log(`  센서 기기 ${sensorDefs.length}건 · 측정값 ${readingCount}건`);
 
   // ══ Phase 2-9: 위험도 스코어 + 장기수선 권장 시드 ══════════════════════
-  console.log('\n[Phase 2-9] 위험도 스코어 & 장기수선 권장 seed 중...');
+  console.log('\n[Phase 2-9] 예지정비 위험도 & 장기수선 권장 seed 중...');
+  await seedPredictiveMaintenance(org);
+  console.log('  위험도 스코어 8건 · 장기수선 권장 8건');
 
-  const WEIGHTS = { defect: 0.30, crack: 0.25, sensor: 0.20, complaint: 0.15, age: 0.10 };
-  const scoreToLevel = (s: number) => s >= 76 ? 'CRITICAL' : s >= 51 ? 'HIGH' : s >= 26 ? 'MEDIUM' : 'LOW';
-
-  interface RiskSeedDef {
-    targetType: string;
-    targetId: string;
-    targetName: string;
-    defect: number; crack: number; sensor: number; complaint: number; age: number;
-  }
-
-  const riskDefs: RiskSeedDef[] = [
-    { targetType: 'BUILDING', targetId: `building:${ORG_ID}:bld_101`, targetName: '101동',    defect: 78, crack: 82, sensor: 55, complaint: 60, age: 70 },
-    { targetType: 'BUILDING', targetId: `building:${ORG_ID}:bld_102`, targetName: '102동',    defect: 40, crack: 35, sensor: 30, complaint: 45, age: 50 },
-    { targetType: 'BUILDING', targetId: `building:${ORG_ID}:bld_103`, targetName: '103동',    defect: 15, crack: 20, sensor: 10, complaint: 20, age: 30 },
-    { targetType: 'ZONE',     targetId: `zone:${ORG_ID}:znr_parking`,  targetName: '지하주차장', defect: 60, crack: 50, sensor: 40, complaint: 35, age: 60 },
-    { targetType: 'ZONE',     targetId: `zone:${ORG_ID}:znr_lobby`,    targetName: '공용 로비',  defect: 25, crack: 15, sensor: 20, complaint: 30, age: 40 },
-    { targetType: 'ASSET',    targetId: `facilityAsset:${ORG_ID}:ast_elevator_101`, targetName: '101동 엘리베이터', defect: 55, crack: 0, sensor: 70, complaint: 50, age: 80 },
-  ];
-
-  const COST_BANDS: Record<string, { min: number; max: number; basis: string }> = {
-    IMMEDIATE_REPAIR:      { min: 10_000_000, max: 50_000_000,  basis: '긴급 보수 공사 실적 기반' },
-    SHORT_TERM_REPAIR:     { min: 5_000_000,  max: 30_000_000,  basis: '단기 보수 유사 공종 기반' },
-    SCHEDULED_MAINTENANCE: { min: 1_000_000,  max: 15_000_000,  basis: '계획 유지보수 단가 기반' },
-    ROUTINE_INSPECTION:    { min: 100_000,    max: 1_000_000,   basis: '정기 점검 용역비 기반' },
-    REPLACEMENT:           { min: 30_000_000, max: 200_000_000, basis: '장기수선계획 교체 단가 기반' },
-  };
-  const levelToMaintenanceType = (l: string, isAsset = false) => {
-    if (l === 'CRITICAL') return isAsset ? 'REPLACEMENT' : 'IMMEDIATE_REPAIR';
-    if (l === 'HIGH')     return 'SHORT_TERM_REPAIR';
-    if (l === 'MEDIUM')   return 'SCHEDULED_MAINTENANCE';
-    return 'ROUTINE_INSPECTION';
-  };
-  const levelToPriority = (l: string) =>
-    l === 'CRITICAL' ? 'IMMEDIATE' : l === 'HIGH' ? 'HIGH' : l === 'MEDIUM' ? 'MEDIUM' : 'LOW';
-  const addDays = (days: number) => {
-    const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0];
-  };
-  const levelToTimeline = (l: string) => {
-    if (l === 'CRITICAL') return { earliest: addDays(0),  latest: addDays(30),  label: '즉시 (1개월 이내)' };
-    if (l === 'HIGH')     return { earliest: addDays(14), latest: addDays(180), label: '단기 (3~6개월 이내)' };
-    if (l === 'MEDIUM')   return { earliest: addDays(30), latest: addDays(365), label: '계획 (6~12개월 이내)' };
-    return { earliest: addDays(90), latest: addDays(400), label: '일상 (12개월 이내)' };
-  };
-
-  // 기존 isLatest 처리 생략 (seed이므로 신규만 생성)
-  for (const def of riskDefs) {
-    const rawScore = def.defect * WEIGHTS.defect + def.crack * WEIGHTS.crack +
-      def.sensor * WEIGHTS.sensor + def.complaint * WEIGHTS.complaint + def.age * WEIGHTS.age;
-    const score = Math.min(Math.round(rawScore), 100);
-    const level = scoreToLevel(score);
-    const now = new Date().toISOString();
-    const rsId = `riskScore:${ORG_ID}:rsk_seed_${def.targetType.toLowerCase()}_${Date.now() + riskDefs.indexOf(def)}`;
-
-    const riskDoc: any = {
-      _id: rsId, docType: 'riskScore', orgId: ORG_ID,
-      complexId: COMPLEX_ID,
-      targetType: def.targetType, targetId: def.targetId, targetName: def.targetName,
-      score, level,
-      confidence: 0.85,
-      calculatedAt: now, isLatest: true,
-      subScores: {
-        defect:    { score: def.defect,    weight: WEIGHTS.defect,    contribution: def.defect    * WEIGHTS.defect,    details: `결함 스코어 ${def.defect}점`,    dataPoints: Math.round(def.defect / 3) },
-        crack:     { score: def.crack,     weight: WEIGHTS.crack,     contribution: def.crack     * WEIGHTS.crack,     details: `균열 스코어 ${def.crack}점`,     dataPoints: Math.round(def.crack / 8) },
-        sensor:    { score: def.sensor,    weight: WEIGHTS.sensor,    contribution: def.sensor    * WEIGHTS.sensor,    details: `센서 스코어 ${def.sensor}점`,    dataPoints: Math.round(def.sensor / 5) },
-        complaint: { score: def.complaint, weight: WEIGHTS.complaint, contribution: def.complaint * WEIGHTS.complaint, details: `민원 스코어 ${def.complaint}점`, dataPoints: Math.round(def.complaint / 10) },
-        age:       { score: def.age,       weight: WEIGHTS.age,       contribution: def.age       * WEIGHTS.age,       details: `노후도 스코어 ${def.age}점`,     dataPoints: 1 },
-      },
-      evidence: {
-        unrepairedDefects: Math.round(def.defect / 5), criticalDefects: Math.round(def.defect / 20),
-        highDefects: Math.round(def.defect / 12),
-        crackThresholdExceedances: Math.round(def.crack / 15), maxCrackWidthMm: def.crack > 0 ? +(def.crack / 40).toFixed(2) : undefined,
-        openComplaints: Math.round(def.complaint / 10), urgentComplaints: Math.round(def.complaint / 30),
-        activeAlerts: Math.round((def.sensor + def.crack) / 20), criticalAlerts: Math.round(def.sensor / 40),
-        sensorAnomalies: Math.round(def.sensor / 15), sensorCriticalCount: Math.round(def.sensor / 30),
-        evidenceSummary: `미수리 결함 ${Math.round(def.defect / 5)}건, 균열 초과 ${Math.round(def.crack / 15)}건, 센서 이상 ${Math.round(def.sensor / 15)}건`,
-      },
-      createdAt: now, updatedAt: now,
-      createdBy: 'system:seed', updatedBy: 'system:seed',
-    };
-    await upsert(org, riskDoc);
-
-    // 권장 문서 생성
-    const maintenanceType = levelToMaintenanceType(level, def.targetType === 'ASSET');
-    const costBase = COST_BANDS[maintenanceType];
-    const recId = `maintenanceRecommendation:${ORG_ID}:rec_seed_${def.targetType.toLowerCase()}_${Date.now() + riskDefs.indexOf(def)}`;
-    const recDoc: any = {
-      _id: recId, docType: 'maintenanceRecommendation', orgId: ORG_ID,
-      complexId: COMPLEX_ID, riskScoreId: rsId,
-      targetType: def.targetType, targetId: def.targetId, targetName: def.targetName,
-      riskScore: score, riskLevel: level,
-      maintenanceType, priority: levelToPriority(level),
-      suggestedTimeline: levelToTimeline(level),
-      estimatedCostBand: { ...costBase, currency: 'KRW' },
-      evidenceSummary: riskDoc.evidence.evidenceSummary,
-      reasoning: [
-        `종합 위험도 ${score}점 (${level})`,
-        `미수리 결함 ${Math.round(def.defect / 5)}건 포함`,
-      ],
-      status: level === 'CRITICAL' ? 'APPROVED' : 'PENDING',
-      createdAt: now, updatedAt: now,
-      createdBy: 'system:seed', updatedBy: 'system:seed',
-    };
-    await upsert(org, recDoc);
-  }
-
-  console.log(`  위험도 스코어 ${riskDefs.length}건 · 장기수선 권장 ${riskDefs.length}건`);
+  // ══ 17. AI 결함 탐지 후보 + AI 진단 의견 ════════════════════════════
+  console.log('\n[17] AI 결함 탐지 후보 (defectCandidate) + AI 진단 의견 (diagnosisOpinion)');
+  await seedAiDetection(org);
 
   // ══ 완료 요약 ════════════════════════════════════════════════════════
   console.log('\n\n╔══════════════════════════════════════════════════════════════╗');
@@ -1563,7 +2203,8 @@ async function seed() {
   console.log('║    민원 37 · 작업지시 12 · 일정 16                           ║');
   console.log('║    경보 23 · 보고서 9 · KPI 13 · RPA 13                      ║');
   console.log('║    IoT 센서 8 · 측정값 584                                   ║');
-  console.log('║    위험도 스코어 6 · 장기수선 권장 6                         ║');
+  console.log('║    위험도 스코어 8 · 장기수선 권장 8                         ║');
+  console.log('║    AI 탐지 후보 12 · AI 진단 의견 6                          ║');
   console.log('╠══════════════════════════════════════════════════════════════╣');
   console.log('║  로그인 계정                                                  ║');
   console.log('║    SUPER_ADMIN   super@ax-platform.kr    / Super@1234        ║');

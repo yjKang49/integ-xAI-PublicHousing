@@ -1,5 +1,7 @@
 // apps/api/src/modules/reports/reports.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { v4 as uuid } from 'uuid';
@@ -10,15 +12,19 @@ import { ConfigService } from '@nestjs/config';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+const CACHE_TTL = 10;
+
 @Injectable()
 export class ReportsService {
   private readonly s3: S3Client;
   private readonly bucket: string;
+  private readonly computingKeys = new Set<string>();
 
   constructor(
     private readonly couch: CouchService,
     private readonly config: ConfigService,
     @InjectQueue('reports') private readonly reportsQueue: Queue,
+    @InjectRedis() private readonly redis: Redis,
   ) {
     this.bucket = config.get('S3_BUCKET', 'ax-media');
     this.s3 = new S3Client({
@@ -82,36 +88,58 @@ export class ReportsService {
   }
 
   async findAll(orgId: string, query: any) {
-    const selector: Record<string, any> = { docType: 'report', orgId };
-    if (query.complexId)  selector.complexId  = query.complexId;
-    if (query.reportType) selector.reportType = query.reportType;
-    if (query.projectId)  selector.projectId  = query.projectId;
-    if (query.publicOnly) selector.isPublic   = true;
+    const cacheKey = `reports:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    // 날짜 범위 필터 (generatedAt은 ISO 문자열 → 사전순 비교 가능)
-    if (query.dateFrom || query.dateTo) {
-      selector.generatedAt = {};
-      if (query.dateFrom) selector.generatedAt['$gte'] = query.dateFrom + 'T00:00:00.000Z';
-      if (query.dateTo)   selector.generatedAt['$lte'] = query.dateTo   + 'T23:59:59.999Z';
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
     }
 
-    // 제목 검색 (대소문자 무시 정규식)
-    if (query.search) {
-      const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      selector.title = { '$regex': `(?i)${escaped}` };
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+
+    try {
+      const selector: Record<string, any> = { docType: 'report', orgId };
+      if (query.complexId)  selector.complexId  = query.complexId;
+      if (query.reportType) selector.reportType = query.reportType;
+      if (query.projectId)  selector.projectId  = query.projectId;
+      if (query.publicOnly) selector.isPublic   = true;
+
+      // 날짜 범위 필터 (generatedAt은 ISO 문자열 → 사전순 비교 가능)
+      if (query.dateFrom || query.dateTo) {
+        selector.generatedAt = {};
+        if (query.dateFrom) selector.generatedAt['$gte'] = query.dateFrom + 'T00:00:00.000Z';
+        if (query.dateTo)   selector.generatedAt['$lte'] = query.dateTo   + 'T23:59:59.999Z';
+      }
+
+      // 제목 검색 (대소문자 무시 정규식)
+      if (query.search) {
+        const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        selector.title = { '$regex': `(?i)${escaped}` };
+      }
+
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 20, 100);
+
+      const { docs } = await this.couch.find<Report>(orgId, selector, {
+        limit: limit + 1,
+        skip: (page - 1) * limit,
+        sort: [{ generatedAt: 'desc' }],
+      });
+
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
     }
-
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 20, 100);
-
-    const { docs } = await this.couch.find<Report>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ generatedAt: 'desc' }],
-    });
-
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
   }
 
   async findById(orgId: string, id: string): Promise<Report> {

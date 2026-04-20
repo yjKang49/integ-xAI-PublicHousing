@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AX-SPRINT | 경보 관리 (Alert Management)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: #F0F9FF;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ── Sidebar nav ── */
+    .nav-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px; border-radius: 12px;
+      cursor: pointer; transition: all 0.18s;
+      font-size: 1.3rem; font-weight: 500; color: #64748b;
+    }
+    .nav-item:hover   { background: #e0f2fe; color: #0369a1; }
+    .nav-item.active  { background: #6366f1; color: #ffffff; font-weight: 700; }
+    .nav-icon { font-size: 1.6rem; flex-shrink: 0; }
+
+    /* ── Summary cards ── */
+    .summary-card {
+      border-radius: 20px;
+      padding: 28px 32px;
+      display: flex; flex-direction: column; gap: 10px;
+      border: 2px solid transparent;
+      transition: transform 0.18s, box-shadow 0.18s;
+      cursor: default;
+    }
+    .summary-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.10); }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 18px; border-radius: 999px;
+      font-size: 1.3rem; font-weight: 700;
+    }
+
+    /* ── Filter row ── */
+    .filter-select {
+      appearance: none;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 16px center;
+      border: 2px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 14px 48px 14px 20px;
+      font-size: 1.4rem; font-weight: 600; color: #1e3a8a;
+      cursor: pointer; outline: none;
+      transition: border-color 0.18s;
+      min-width: 200px;
+    }
+    .filter-select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+
+    /* ── Table ── */
+    .alert-table { width: 100%; border-collapse: separate; border-spacing: 0 14px; }
+    .alert-table th {
+      font-size: 1.3rem; font-weight: 700; color: #475569;
+      padding: 0 24px 8px; text-align: left;
+      border-bottom: 2px solid #bae6fd;
+    }
+    .alert-row td {
+      padding: 22px 24px;
+      background: #fff;
+      font-size: 1.55rem;
+      vertical-align: middle;
+    }
+    .alert-row td:first-child { border-radius: 16px 0 0 16px; }
+    .alert-row td:last-child  { border-radius: 0 16px 16px 0; }
+    .alert-row:hover td { background: #f0f9ff; }
+
+    /* ── Action button ── */
+    .btn-confirm {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: 12px;
+      font-size: 1.3rem; font-weight: 700;
+      border: none; cursor: pointer; transition: all 0.18s;
+    }
+    .btn-confirm.confirm  { background: #dbeafe; color: #1d4ed8; }
+    .btn-confirm.resolve  { background: #dcfce7; color: #15803d; }
+    .btn-confirm.confirm:hover { background: #bfdbfe; }
+    .btn-confirm.resolve:hover { background: #bbf7d0; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #e0f2fe; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 3px; }
+
+    /* ── Blinking dot ── */
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .blink { animation: blink 1.2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ─────────────────────────────────────────
+   ALERT DATA
+───────────────────────────────────────── */
+const ALERTS_INIT = [
+  {
+    id: 'ALT-2025-0041',
+    severity: '긴급',
+    type: '구조 손상',
+    location: '102동 외벽 5층',
+    title: '외벽 콘크리트 박락 위험',
+    desc: 'AI 영상 분석 결과 박락 면적 0.48㎡ 검출 · 낙하 위험',
+    time: '10:12',
+    status: '미확인',
+    assignee: '홍길동 선임',
+  },
+  {
+    id: 'ALT-2025-0040',
+    severity: '긴급',
+    type: '구조 손상',
+    location: '101동 1층 필로티',
+    title: '필로티 기둥 좌굴 하중 초과',
+    desc: 'FEM 해석 좌굴 하중 대비 94.7% 도달 — 즉시 조치 필요',
+    time: '09:55',
+    status: '확인 중',
+    assignee: '이영희 선임',
+  },
+  {
+    id: 'ALT-2025-0039',
+    severity: '높음',
+    type: '균열',
+    location: '103동 3층 외벽',
+    title: '균열 임계치 초과 (0.8 → 1.2mm)',
+    desc: '균열 게이지 SEN-C-307 측정값이 경보 임계치 0.8mm 초과',
+    time: '09:33',
+    status: '미확인',
+    assignee: '박철수 검토관',
+  },
+  {
+    id: 'ALT-2025-0038',
+    severity: '높음',
+    type: '설비 이상',
+    location: '지하 B1층 배수관',
+    title: '배수관 누수 감지',
+    desc: '수분 센서 WS-B1-04 누수 신호 지속 — 기계실 침수 가능성',
+    time: '09:14',
+    status: '확인 중',
+    assignee: '김민준 선임',
+  },
+  {
+    id: 'ALT-2025-0037',
+    severity: '보통',
+    type: '설비 이상',
+    location: '102동 엘리베이터 #2',
+    title: '엘리베이터 진동 이상 감지',
+    desc: '가속도 센서 ACC-EV-102B 진동값 기준치 1.8배 초과',
+    time: '08:47',
+    status: '미확인',
+    assignee: '최지훈 검토관',
+  },
+  {
+    id: 'ALT-2025-0036',
+    severity: '낮음',
+    type: '노후화',
+    location: '101동 옥상',
+    title: '옥상 방수층 노후화 진행',
+    desc: '드론 열화상 분석 결과 방수층 박리 면적 2.1㎡ 확인',
+    time: '08:20',
+    status: '해결 완료',
+    assignee: '홍길동 선임',
+  },
+];
+
+const SUMMARY = [
+  { label: '낮음',  count: 3,  bg: '#E0F2FE', border: '#7dd3fc', textNum: '#0369a1', icon: '🔵' },
+  { label: '보통',  count: 5,  bg: '#E0F2FE', border: '#38bdf8', textNum: '#0c4a6e', icon: '🟦' },
+  { label: '높음',  count: 8,  bg: '#FEF3C7', border: '#fcd34d', textNum: '#92400e', icon: '🟡' },
+  { label: '긴급',  count: 3,  bg: '#FFE4E6', border: '#fca5a5', textNum: '#9f1239', icon: '🔴' },
+];
+
+const SEV_CFG = {
+  '긴급': { bg: '#FFE4E6', text: '#9f1239', border: '#fca5a5', dot: '#ef4444' },
+  '높음': { bg: '#FEF3C7', text: '#92400e', border: '#fcd34d', dot: '#f59e0b' },
+  '보통': { bg: '#E0F2FE', text: '#075985', border: '#7dd3fc', dot: '#38bdf8' },
+  '낮음': { bg: '#F0FDF4', text: '#166534', border: '#86efac', dot: '#22c55e' },
+};
+const STATUS_CFG = {
+  '미확인':  { bg: '#fef2f2', text: '#b91c1c' },
+  '확인 중': { bg: '#fffbeb', text: '#b45309' },
+  '해결 완료':{ bg: '#f0fdf4', text: '#15803d' },
+};
+
+const NAV = [
+  { icon: '🏠', label: '대시보드',     path: '/' },
+  { icon: '🏢', label: '시설물 목록',  path: '/facilities' },
+  { icon: '📡', label: '실시간 센서',  path: '/sensors' },
+  { icon: '🔔', label: '경보 관리',    path: '/alerts', active: true },
+  { icon: '📋', label: '점검 이력',    path: '/inspections' },
+  { icon: '📊', label: '보고서',       path: '/reports' },
+  { icon: '⚙️', label: '시스템 설정', path: '/settings' },
+];
+
+/* ─────────────────────────────────────────
+   COMPONENT
+───────────────────────────────────────── */
+function App() {
+  const [alerts, setAlerts] = useState(ALERTS_INIT);
+  const [filterSev,  setFilterSev]  = useState('전체');
+  const [filterType, setFilterType] = useState('전체');
+  const [filterStat, setFilterStat] = useState('전체');
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const filtered = alerts.filter(a =>
+    (filterSev  === '전체' || a.severity === filterSev) &&
+    (filterType === '전체' || a.type     === filterType) &&
+    (filterStat === '전체' || a.status   === filterStat)
+  );
+
+  const handleConfirm = (id) => {
+    setAlerts(prev => prev.map(a =>
+      a.id === id && a.status === '미확인' ? { ...a, status: '확인 중' } : a
+    ));
+  };
+  const handleResolve = (id) => {
+    setAlerts(prev => prev.map(a =>
+      a.id === id && a.status !== '해결 완료' ? { ...a, status: '해결 완료' } : a
+    ));
+  };
+
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const dateStr = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh', background:'#F0F9FF' }}>
+
+      {/* ══════════ SIDEBAR ══════════ */}
+      <aside style={{
+        width: 280, flexShrink: 0,
+        background: '#ffffff',
+        borderRight: '2px solid #bae6fd',
+        display: 'flex', flexDirection: 'column',
+        padding: '28px 16px',
+        gap: 8,
+      }}>
+        {/* Logo */}
+        <div style={{ padding:'0 8px 24px', borderBottom:'2px solid #e0f2fe' }}>
+          <div style={{ fontSize:'1.7rem', fontWeight:900, color:'#6366f1', letterSpacing:'-0.5px' }}>
+            ⚡ AX-SPRINT
+          </div>
+          <div style={{ fontSize:'1rem', color:'#94a3b8', marginTop:4 }}>공공임대주택 스마트 안전관리</div>
+        </div>
+
+        {/* Nav items */}
+        <nav style={{ flex:1, display:'flex', flexDirection:'column', gap:4, marginTop:12 }}>
+          {NAV.map(n => (
+            <div key={n.path} className={`nav-item${n.active ? ' active' : ''}`}>
+              <span className="nav-icon">{n.icon}</span>
+              <span>{n.label}</span>
+              {n.active && (
+                <span style={{
+                  marginLeft:'auto', background:'rgba(255,255,255,0.25)',
+                  borderRadius:999, padding:'2px 12px', fontSize:'1.1rem',
+                }}>
+                  {alerts.filter(a => a.status !== '해결 완료').length}
+                </span>
+              )}
+            </div>
+          ))}
+        </nav>
+
+        {/* User info */}
+        <div style={{
+          marginTop:'auto', padding:'16px 12px',
+          background:'#f0f9ff', borderRadius:14,
+          border:'1.5px solid #bae6fd',
+        }}>
+          <div style={{ fontSize:'1.25rem', fontWeight:700, color:'#1e40af' }}>👤 김관리 팀장</div>
+          <div style={{ fontSize:'1.05rem', color:'#64748b', marginTop:4 }}>시설안전팀 · ORG_ADMIN</div>
+        </div>
+      </aside>
+
+      {/* ══════════ MAIN CONTENT ══════════ */}
+      <main style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, overflowY:'auto' }}>
+
+        {/* ── Top header bar ── */}
+        <header style={{
+          position:'sticky', top:0, zIndex:50,
+          background:'rgba(240,249,255,0.95)',
+          backdropFilter:'blur(8px)',
+          borderBottom:'2px solid #bae6fd',
+          padding:'18px 40px',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize:'2.2rem', fontWeight:900, color:'#1e3a8a', letterSpacing:'-0.5px' }}>
+              🔔 경보 관리
+            </div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:'2rem', fontWeight:700, color:'#6366f1', fontVariantNumeric:'tabular-nums' }}>
+              {timeStr}
+            </div>
+            <div style={{ fontSize:'1.2rem', color:'#64748b' }}>{dateStr}</div>
+          </div>
+        </header>
+
+        <div style={{ padding:'32px 40px', display:'flex', flexDirection:'column', gap:28 }}>
+
+          {/* ══ SUMMARY CARDS ══ */}
+          <section>
+            <div style={{ fontSize:'1.6rem', fontWeight:800, color:'#1e3a8a', marginBottom:18 }}>
+              📊 경보 현황 요약
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:20 }}>
+              {SUMMARY.map(s => (
+                <div key={s.label} className="summary-card"
+                  style={{ background: s.bg, border: `2px solid ${s.border}` }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:'2.8rem' }}>{s.icon}</span>
+                    <span style={{
+                      fontSize:'1.25rem', fontWeight:700, color:s.textNum,
+                      background:'rgba(255,255,255,0.6)', borderRadius:999, padding:'4px 14px',
+                    }}>
+                      {s.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize:'4.5rem', fontWeight:900, color: s.textNum, lineHeight:1.1, marginTop:6 }}>
+                    {s.count}
+                    <span style={{ fontSize:'1.6rem', fontWeight:600, marginLeft:6 }}>건</span>
+                  </div>
+                  <div style={{ fontSize:'1.2rem', color: s.textNum, opacity:0.75 }}>
+                    활성 경보
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ══ FILTER BAR ══ */}
+          <section style={{
+            background:'#fff', borderRadius:20,
+            border:'2px solid #bae6fd',
+            padding:'24px 32px',
+            display:'flex', alignItems:'center', gap:24, flexWrap:'wrap',
+          }}>
+            <div style={{ fontSize:'1.6rem', fontWeight:800, color:'#1e3a8a', marginRight:8 }}>
+              🔍 필터
+            </div>
+
+            {[
+              { label:'심각도', val: filterSev,  set: setFilterSev,  opts:['전체','긴급','높음','보통','낮음'] },
+              { label:'유형',   val: filterType, set: setFilterType, opts:['전체','구조 손상','균열','설비 이상','노후화'] },
+              { label:'상태',   val: filterStat, set: setFilterStat, opts:['전체','미확인','확인 중','해결 완료'] },
+            ].map(f => (
+              <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <label style={{ fontSize:'1.2rem', fontWeight:700, color:'#475569' }}>{f.label}</label>
+                <select
+                  className="filter-select"
+                  value={f.val}
+                  onChange={e => f.set(e.target.value)}
+                >
+                  {f.opts.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+
+            <div style={{ marginLeft:'auto', fontSize:'1.4rem', color:'#64748b', fontWeight:600 }}>
+              총&nbsp;
+              <span style={{ color:'#6366f1', fontWeight:800, fontSize:'1.8rem' }}>{filtered.length}</span>
+              &nbsp;건 표시 중
+            </div>
+          </section>
+
+          {/* ══ ALERT TABLE ══ */}
+          <section style={{
+            background:'#fff', borderRadius:20,
+            border:'2px solid #bae6fd',
+            padding:'28px 32px',
+          }}>
+            <div style={{ fontSize:'1.6rem', fontWeight:800, color:'#1e3a8a', marginBottom:20 }}>
+              🚨 경보 목록
+            </div>
+
+            <table className="alert-table">
+              <thead>
+                <tr>
+                  {['심각도','경보 ID','위치','내용 / 설명','유형','상태','발생 시각','담당자','조치'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{
+                      textAlign:'center', padding:'48px',
+                      fontSize:'1.8rem', color:'#94a3b8', background:'#f8fafc',
+                      borderRadius:16,
+                    }}>
+                      해당 조건의 경보가 없습니다.
+                    </td>
+                  </tr>
+                ) : filtered.map(a => {
+                  const sc = SEV_CFG[a.severity] || SEV_CFG['낮음'];
+                  const st = STATUS_CFG[a.status] || STATUS_CFG['미확인'];
+                  const isCritical = a.severity === '긴급';
+                  return (
+                    <tr key={a.id} className="alert-row" style={{
+                      boxShadow: isCritical ? `0 0 0 2px ${sc.border}` : 'none',
+                    }}>
+                      {/* 심각도 */}
+                      <td>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          {isCritical && (
+                            <span className="blink" style={{
+                              width:12, height:12, borderRadius:'50%',
+                              background: sc.dot, display:'inline-block', flexShrink:0,
+                            }}/>
+                          )}
+                          <span className="badge" style={{ background: sc.bg, color: sc.text, border:`1.5px solid ${sc.border}` }}>
+                            {a.severity}
+                          </span>
+                        </div>
+                      </td>
+                      {/* ID */}
+                      <td>
+                        <span style={{ fontSize:'1.25rem', color:'#94a3b8', fontFamily:'monospace' }}>{a.id}</span>
+                      </td>
+                      {/* 위치 */}
+                      <td>
+                        <span style={{ fontSize:'1.5rem', fontWeight:700, color:'#1e40af' }}>
+                          📍 {a.location}
+                        </span>
+                      </td>
+                      {/* 내용 */}
+                      <td style={{ maxWidth: 320 }}>
+                        <div style={{ fontSize:'1.55rem', fontWeight:800, color:'#0f172a', marginBottom:4 }}>
+                          {a.title}
+                        </div>
+                        <div style={{ fontSize:'1.2rem', color:'#64748b', lineHeight:1.4 }}>{a.desc}</div>
+                      </td>
+                      {/* 유형 */}
+                      <td>
+                        <span style={{
+                          fontSize:'1.3rem', fontWeight:700,
+                          background:'#e0f2fe', color:'#0369a1',
+                          padding:'5px 16px', borderRadius:999,
+                        }}>
+                          {a.type}
+                        </span>
+                      </td>
+                      {/* 상태 */}
+                      <td>
+                        <span style={{
+                          fontSize:'1.3rem', fontWeight:700,
+                          background: st.bg, color: st.text,
+                          padding:'6px 18px', borderRadius:999,
+                        }}>
+                          {a.status}
+                        </span>
+                      </td>
+                      {/* 시각 */}
+                      <td>
+                        <span style={{ fontSize:'1.5rem', fontWeight:700, color:'#334155', fontVariantNumeric:'tabular-nums' }}>
+                          ⏰ {a.time}
+                        </span>
+                      </td>
+                      {/* 담당자 */}
+                      <td>
+                        <span style={{ fontSize:'1.4rem', color:'#475569' }}>👤 {a.assignee}</span>
+                      </td>
+                      {/* 조치 버튼 */}
+                      <td>
+                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                          {a.status !== '해결 완료' && (
+                            <>
+                              {a.status === '미확인' && (
+                                <button
+                                  className="btn-confirm confirm"
+                                  onClick={() => handleConfirm(a.id)}
+                                >
+                                  ✅ 확인
+                                </button>
+                              )}
+                              <button
+                                className="btn-confirm resolve"
+                                onClick={() => handleResolve(a.id)}
+                              >
+                                🔧 해결
+                              </button>
+                            </>
+                          )}
+                          {a.status === '해결 완료' && (
+                            <span style={{ fontSize:'1.3rem', color:'#15803d', fontWeight:700 }}>
+                              ✔ 완료
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+
+          {/* ══ FOOTER ══ */}
+          <footer style={{
+            textAlign:'center', padding:'16px',
+            fontSize:'1.1rem', color:'#94a3b8',
+          }}>
+            AX-SPRINT v1.0 · 국토교통부 AI 응용제품 신속상용화 지원사업 · © 2025 AX Technologies
+          </footer>
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

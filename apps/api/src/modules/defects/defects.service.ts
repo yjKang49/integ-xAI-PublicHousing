@@ -1,13 +1,22 @@
 // apps/api/src/modules/defects/defects.service.ts
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import { Defect, SeverityLevel, AlertType, Alert } from '@ax/shared';
 import { CreateDefectRequest, UpdateDefectRequest, DefectListQuery } from '@ax/shared';
 
+const CACHE_TTL = 10;
+
 @Injectable()
 export class DefectsService {
-  constructor(private readonly couch: CouchService) {}
+  private readonly computingKeys = new Set<string>();
+
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   async create(orgId: string, dto: CreateDefectRequest, userId: string): Promise<Defect> {
     const now = new Date().toISOString();
@@ -44,41 +53,60 @@ export class DefectsService {
   }
 
   async findAll(orgId: string, query: DefectListQuery) {
-    const selector: Record<string, any> = {
-      docType: 'defect',
-      orgId,
-    };
+    const cacheKey = `defects:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    if (query.complexId) selector.complexId = query.complexId;
-    if (query.buildingId) selector.buildingId = query.buildingId;
-    if (query.sessionId) selector.sessionId = query.sessionId;
-    if (query.defectType) selector.defectType = query.defectType;
-    if (query.severity) selector.severity = query.severity;
-    if (query.isRepaired !== undefined) selector.isRepaired = query.isRepaired;
-
-    if (query.dateFrom || query.dateTo) {
-      selector.createdAt = {};
-      if (query.dateFrom) selector.createdAt.$gte = query.dateFrom;
-      if (query.dateTo) selector.createdAt.$lte = query.dateTo;
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
     }
 
-    const page = query.page ?? 1;
-    const limit = Math.min(query.limit ?? 20, 100);
-    const skip = (page - 1) * limit;
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
 
-    const { docs } = await this.couch.find<Defect>(orgId, selector, {
-      limit: limit + 1,
-      skip,
-      sort: [{ createdAt: (query.order ?? 'desc') as 'asc' | 'desc' }],
-    });
+    try {
+      const selector: Record<string, any> = {
+        docType: 'defect',
+        orgId,
+      };
 
-    const hasNext = docs.length > limit;
-    const data = hasNext ? docs.slice(0, limit) : docs;
+      if (query.complexId) selector.complexId = query.complexId;
+      if (query.buildingId) selector.buildingId = query.buildingId;
+      if (query.sessionId) selector.sessionId = query.sessionId;
+      if (query.defectType) selector.defectType = query.defectType;
+      if (query.severity) selector.severity = query.severity;
+      if (query.isRepaired !== undefined) selector.isRepaired = query.isRepaired;
 
-    return {
-      data,
-      meta: { total: -1, page, limit, hasNext },
-    };
+      if (query.dateFrom || query.dateTo) {
+        selector.createdAt = {};
+        if (query.dateFrom) selector.createdAt.$gte = query.dateFrom;
+        if (query.dateTo) selector.createdAt.$lte = query.dateTo;
+      }
+
+      const page = query.page ?? 1;
+      const limit = Math.min(query.limit ?? 20, 100);
+      const skip = (page - 1) * limit;
+
+      const { docs } = await this.couch.find<Defect>(orgId, selector, {
+        limit: limit + 1,
+        skip,
+        sort: [{ createdAt: (query.order ?? 'desc') as 'asc' | 'desc' }],
+      });
+
+      const hasNext = docs.length > limit;
+      const data = hasNext ? docs.slice(0, limit) : docs;
+
+      const result = { data, meta: { total: -1, page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
+    }
   }
 
   async update(orgId: string, id: string, dto: UpdateDefectRequest, userId: string): Promise<Defect> {

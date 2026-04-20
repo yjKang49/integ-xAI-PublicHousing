@@ -2,6 +2,8 @@
 import {
   Injectable, Logger, NotFoundException, BadRequestException,
 } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import {
   S3Client, PutObjectCommand, HeadObjectCommand, DeleteObjectCommand,
@@ -9,6 +11,8 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuid } from 'uuid'
 import { CouchService } from '../../database/couch.service'
+
+const CACHE_TTL = 10
 import { JobsService } from '../jobs/jobs.service'
 import {
   DroneMission, DroneMissionMedia, DroneMissionStatus, DroneMediaItemStatus,
@@ -34,11 +38,13 @@ export class DroneMissionsService {
   private readonly logger = new Logger(DroneMissionsService.name)
   private readonly s3: S3Client
   private readonly bucket: string
+  private readonly computingKeys = new Set<string>()
 
   constructor(
     private readonly couch: CouchService,
     private readonly config: ConfigService,
     private readonly jobsService: JobsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {
     this.s3 = new S3Client({
       endpoint: config.get<string>('S3_ENDPOINT'),
@@ -91,24 +97,30 @@ export class DroneMissionsService {
     orgId: string,
     query: DroneMissionQueryDto,
   ): Promise<{ data: DroneMission[]; meta: { total: number; page: number; limit: number; hasNext: boolean } }> {
-    const selector: Record<string, any> = { docType: 'droneMission', orgId }
-    if (query.complexId) selector.complexId = query.complexId
-    if (query.sessionId) selector.sessionId = query.sessionId
-    if (query.status)    selector.status    = query.status
-
-    const page  = Math.max(1, query.page  ?? 1)
-    const limit = Math.min(query.limit ?? 20, 100)
-
-    const { docs: allDocs } = await this.couch.find<DroneMission>(orgId, selector, { limit: 0 })
-    const total = allDocs.length
-
-    const { docs } = await this.couch.find<DroneMission>(orgId, selector, {
-      limit,
-      skip: (page - 1) * limit,
-      sort: [{ createdAt: 'desc' }],
-    })
-
-    return { data: docs, meta: { total, page, limit, hasNext: page * limit < total } }
+    const cacheKey = `drone-missions:list:${orgId}:${JSON.stringify(query)}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
+    }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const selector: Record<string, any> = { docType: 'droneMission', orgId }
+      if (query.complexId) selector.complexId = query.complexId
+      if (query.sessionId) selector.sessionId = query.sessionId
+      if (query.status)    selector.status    = query.status
+      const page  = Math.max(1, query.page  ?? 1)
+      const limit = Math.min(query.limit ?? 20, 100)
+      const { docs } = await this.couch.find<DroneMission>(orgId, selector, { limit: limit + 1, skip: (page - 1) * limit, sort: [{ createdAt: 'desc' }] })
+      const hasNext = docs.length > limit
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { total: docs.length, page, limit, hasNext } }
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 
   async findById(orgId: string, missionId: string): Promise<DroneMission> {

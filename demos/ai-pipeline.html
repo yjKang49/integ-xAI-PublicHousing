@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AX-SPRINT | AI 데이터 파이프라인 & 워크플로우</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: #F8FAFC;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ── Pipeline arrow ── */
+    .pipe-arrow {
+      display: flex; align-items: center; flex-shrink: 0;
+      color: #6366f1; font-size: 2.8rem; font-weight: 900;
+      padding: 0 4px;
+    }
+
+    /* ── Feedback loop line ── */
+    @keyframes flow-dash {
+      from { stroke-dashoffset: 40; }
+      to   { stroke-dashoffset: 0; }
+    }
+    .flow-line { animation: flow-dash 1.6s linear infinite; }
+
+    /* ── Pipeline step card ── */
+    .pipe-step {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      padding: 28px 20px;
+      background: #fff;
+      border-radius: 20px;
+      border: 2.5px solid #e0e7ff;
+      box-shadow: 0 4px 18px rgba(99,102,241,0.09);
+      flex: 1; min-width: 0;
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .pipe-step:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(99,102,241,0.17);
+    }
+
+    /* ── AI Pipeline cards ── */
+    .ai-card {
+      background: #fff;
+      border-radius: 20px;
+      border: 2px solid #e0e7ff;
+      box-shadow: 0 4px 18px rgba(99,102,241,0.08);
+      padding: 32px 28px;
+      display: flex; flex-direction: column; gap: 18px;
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .ai-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(99,102,241,0.15);
+    }
+
+    /* ── Progress bar ── */
+    .prog-track {
+      background: #e0e7ff; border-radius: 999px; height: 14px; overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #6366f1, #38bdf8);
+      transition: width 0.6s ease;
+    }
+
+    /* ── Status badge ── */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 20px; border-radius: 999px;
+      font-size: 1.3rem; font-weight: 700;
+    }
+
+    /* ── Stat chip ── */
+    .stat-chip {
+      display: flex; flex-direction: column; align-items: center;
+      background: #f0f4ff; border-radius: 14px; padding: 14px 18px; gap: 4px;
+      flex: 1;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #e0e7ff; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 3px; }
+
+    /* ── Sidebar nav ── */
+    .nav-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px; border-radius: 12px;
+      cursor: pointer; transition: all 0.18s;
+      font-size: 1.3rem; font-weight: 500; color: #64748b;
+    }
+    .nav-item:hover  { background: #e0e7ff; color: #4338ca; }
+    .nav-item.active { background: #6366f1; color: #ffffff; font-weight: 700; }
+
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+    @keyframes slide-right {
+      0%   { transform: translateX(-6px); opacity:0.4; }
+      100% { transform: translateX(6px);  opacity:1; }
+    }
+    .slide-r { animation: slide-right 0.9s ease-in-out infinite alternate; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ─────────────────────────────────────────
+   PIPELINE STEPS
+───────────────────────────────────────── */
+const PIPE_STEPS = [
+  {
+    step: 1, icon: '🗄️', label: 'RAW 데이터',
+    sub: '센서·드론·현장',
+    color: '#e0f2fe', border: '#7dd3fc', text: '#0369a1',
+    items: ['IoT 센서 24종', '드론 영상 4K', '점검 사진'],
+  },
+  {
+    step: 2, icon: '⚙️', label: '학습 데이터',
+    sub: '전처리·레이블링',
+    color: '#ede9fe', border: '#a78bfa', text: '#5b21b6',
+    items: ['정규화·증강', 'AI 자동 레이블', '품질 검증'],
+  },
+  {
+    step: 3, icon: '🧠', label: 'AI 모델',
+    sub: '학습·최적화',
+    color: '#e0e7ff', border: '#818cf8', text: '#3730a3',
+    items: ['Mask R-CNN', 'LSTM · XGBoost', 'LLM Fine-tune'],
+  },
+  {
+    step: 4, icon: '📊', label: '분석 결과',
+    sub: '추론·XAI 해석',
+    color: '#fce7f3', border: '#f9a8d4', text: '#9d174d',
+    items: ['결함 탐지 93.1%', 'XAI 신뢰도', '이상 예측'],
+  },
+  {
+    step: 5, icon: '🏗️', label: '현장 활용',
+    sub: '대시보드·경보',
+    color: '#fef3c7', border: '#fcd34d', text: '#92400e',
+    items: ['실시간 경보', '점검 스케줄', 'RPA 보고서'],
+  },
+  {
+    step: 6, icon: '🎯', label: '기대 효과',
+    sub: '성과·지속 개선',
+    color: '#dcfce7', border: '#86efac', text: '#166534',
+    items: ['사고 예방 92%', '비용 절감 35%', '민원 처리 3배'],
+  },
+];
+
+/* ─────────────────────────────────────────
+   AI PIPELINE CARDS
+───────────────────────────────────────── */
+const AI_PIPELINES = [
+  {
+    icon: '👁️', label: '비전 AI',
+    name: '드론·CCTV 결함 탐지',
+    model: 'Mask R-CNN + YOLOv9',
+    acc: 93.1, dataset: '42,800장',
+    status: '운영 중',
+    statusColor: { bg:'#dcfce7', text:'#15803d' },
+    latency: '1.2초',
+    tags: ['균열', '박락', '철근 노출'],
+    desc: 'AI 영상 분석으로 외벽·기둥·슬래브 결함을 자동 탐지. 신뢰도 93% 이상 결함만 경보 발행.',
+    chip1: { label:'정확도', val:'93.1%' },
+    chip2: { label:'학습 데이터', val:'42,800장' },
+    chip3: { label:'추론 시간', val:'1.2초' },
+  },
+  {
+    icon: '🔮', label: 'XAI 예지정비',
+    name: '구조 열화 예측',
+    model: 'XGBoost + SHAP',
+    acc: 91.4, dataset: '288,000건',
+    status: '운영 중',
+    statusColor: { bg:'#dcfce7', text:'#15803d' },
+    latency: '0.3초',
+    tags: ['피로 균열', '좌굴', '침하'],
+    desc: 'SHAP 기반 설명 가능 AI로 구조 열화 원인을 부재 단위로 분해 제시. 정비 우선순위 자동 산출.',
+    chip1: { label:'예측 정확도', val:'91.4%' },
+    chip2: { label:'학습 데이터', val:'288K건' },
+    chip3: { label:'설명 기여도', val:'SHAP' },
+  },
+  {
+    icon: '💬', label: 'NLP 민원',
+    name: '민원 분류·자동 응답',
+    model: 'KoBERT + GPT-4o',
+    acc: 96.2, dataset: '156,000건',
+    status: '운영 중',
+    statusColor: { bg:'#dcfce7', text:'#15803d' },
+    latency: '0.8초',
+    tags: ['균열 민원', '누수', '소음'],
+    desc: '민원 텍스트를 NLP로 자동 분류 후 GPT-4o가 답변 초안 생성. 담당자 확인 후 발송.',
+    chip1: { label:'분류 정확도', val:'96.2%' },
+    chip2: { label:'학습 민원', val:'156K건' },
+    chip3: { label:'응답 시간', val:'0.8초' },
+  },
+  {
+    icon: '📡', label: 'IoT 이상탐지',
+    name: '센서 이상 감지·경보',
+    model: 'LSTM Autoencoder',
+    acc: 89.7, dataset: '520만 포인트',
+    status: '학습 중',
+    statusColor: { bg:'#fef3c7', text:'#b45309' },
+    latency: '0.05초',
+    tags: ['진동', '변위', '온도'],
+    desc: 'LSTM Autoencoder가 정상 패턴 학습 후 이상 발생 시 즉시 경보. 24종 IoT 센서 실시간 모니터링.',
+    chip1: { label:'탐지 정확도', val:'89.7%' },
+    chip2: { label:'학습 포인트', val:'520만' },
+    chip3: { label:'경보 지연', val:'0.05초' },
+  },
+  {
+    icon: '📈', label: '시계열 예측',
+    name: '리스크 지수 예측',
+    model: 'Transformer + Prophet',
+    acc: 92.0, dataset: '3년치 이력',
+    status: '운영 중',
+    statusColor: { bg:'#dcfce7', text:'#15803d' },
+    latency: '2.1초',
+    tags: ['리스크 지수', '열화 속도', '수명 예측'],
+    desc: 'Transformer 모델로 30·60·90일 구조 열화 리스크를 예측. 정기 점검 스케줄 자동 조정에 활용.',
+    chip1: { label:'예측 RMSE', val:'0.031' },
+    chip2: { label:'예측 정확도', val:'92.0%' },
+    chip3: { label:'예측 기간', val:'90일' },
+  },
+  {
+    icon: '📝', label: 'LLM 보고서',
+    name: 'AI 점검 보고서 자동화',
+    model: 'Claude Sonnet + RAG',
+    acc: 94.5, dataset: 'KICT 기준 DB',
+    status: '운영 중',
+    statusColor: { bg:'#dcfce7', text:'#15803d' },
+    latency: '4.8초',
+    tags: ['KICT 기준', 'RAG 검색', '자동 발행'],
+    desc: 'KICT 점검 기준 RAG DB 기반으로 분석 결과를 HWP/PDF 보고서로 자동 생성. 승인 워크플로우 내장.',
+    chip1: { label:'적합성', val:'94.5%' },
+    chip2: { label:'기준 DB', val:'2,840건' },
+    chip3: { label:'생성 시간', val:'4.8초' },
+  },
+];
+
+const NAV = [
+  { icon: '🏠', label: '대시보드',         path: '/' },
+  { icon: '🏢', label: '시설물 목록',      path: '/facilities' },
+  { icon: '🧠', label: 'AI 파이프라인',    path: '/ai-pipeline', active: true },
+  { icon: '📡', label: '실시간 센서',      path: '/sensors' },
+  { icon: '🔔', label: '경보 관리',        path: '/alerts' },
+  { icon: '📋', label: '점검 이력',        path: '/inspections' },
+  { icon: '📊', label: '보고서',           path: '/reports' },
+];
+
+/* ─────────────────────────────────────────
+   COMPONENT
+───────────────────────────────────────── */
+function App() {
+  const [now, setNow] = useState(new Date());
+  const [activeCard, setActiveCard] = useState(null);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const dateStr = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh', background:'#F8FAFC' }}>
+
+      {/* ══════════ SIDEBAR ══════════ */}
+      <aside style={{
+        width: 280, flexShrink: 0,
+        background: '#ffffff',
+        borderRight: '2px solid #e0e7ff',
+        display: 'flex', flexDirection: 'column',
+        padding: '28px 16px', gap: 8,
+      }}>
+        <div style={{ padding:'0 8px 24px', borderBottom:'2px solid #e0e7ff' }}>
+          <div style={{ fontSize:'1.7rem', fontWeight:900, color:'#6366f1', letterSpacing:'-0.5px' }}>
+            ⚡ AX-SPRINT
+          </div>
+          <div style={{ fontSize:'1rem', color:'#94a3b8', marginTop:4 }}>공공임대주택 스마트 안전관리</div>
+        </div>
+        <nav style={{ flex:1, display:'flex', flexDirection:'column', gap:4, marginTop:12 }}>
+          {NAV.map(n => (
+            <div key={n.path} className={`nav-item${n.active ? ' active' : ''}`}>
+              <span style={{ fontSize:'1.5rem' }}>{n.icon}</span>
+              <span>{n.label}</span>
+            </div>
+          ))}
+        </nav>
+        <div style={{
+          marginTop:'auto', padding:'16px 12px',
+          background:'#f0f4ff', borderRadius:14,
+          border:'1.5px solid #c7d2fe',
+        }}>
+          <div style={{ fontSize:'1.25rem', fontWeight:700, color:'#3730a3' }}>👤 김관리 팀장</div>
+          <div style={{ fontSize:'1.05rem', color:'#64748b', marginTop:4 }}>시설안전팀 · ORG_ADMIN</div>
+        </div>
+      </aside>
+
+      {/* ══════════ MAIN ══════════ */}
+      <main style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, overflowY:'auto' }}>
+
+        {/* Header */}
+        <header style={{
+          position:'sticky', top:0, zIndex:50,
+          background:'rgba(248,250,252,0.95)',
+          backdropFilter:'blur(8px)',
+          borderBottom:'2px solid #e0e7ff',
+          padding:'18px 40px',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize:'2.2rem', fontWeight:900, color:'#1e1b4b', letterSpacing:'-0.5px' }}>
+              🧠 AI 데이터 파이프라인 &amp; 워크플로우
+            </div>
+            <div style={{ fontSize:'1.2rem', color:'#64748b', marginTop:2 }}>
+              AI Data Pipeline · http://172.31.112.1:4200/ai-pipeline
+            </div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:'2rem', fontWeight:700, color:'#6366f1', fontVariantNumeric:'tabular-nums' }}>
+              {timeStr}
+            </div>
+            <div style={{ fontSize:'1.2rem', color:'#64748b' }}>{dateStr}</div>
+          </div>
+        </header>
+
+        <div style={{ padding:'36px 40px', display:'flex', flexDirection:'column', gap:40 }}>
+
+          {/* ══ SECTION 1: 6-STEP PIPELINE ══ */}
+          <section>
+            <div style={{ fontSize:'1.8rem', fontWeight:800, color:'#1e1b4b', marginBottom:6 }}>
+              📐 6단계 AI 데이터 파이프라인
+            </div>
+            <div style={{ fontSize:'1.2rem', color:'#64748b', marginBottom:22 }}>
+              RAW 데이터 수집부터 현장 활용 및 기대 효과까지의 엔드-투-엔드 흐름
+            </div>
+
+            {/* Step cards row */}
+            <div style={{ display:'flex', alignItems:'stretch', gap:0 }}>
+              {PIPE_STEPS.map((s, i) => (
+                <React.Fragment key={s.step}>
+                  <div className="pipe-step" style={{ background: s.color, borderColor: s.border }}>
+                    {/* Step number */}
+                    <div style={{
+                      fontSize:'1.1rem', fontWeight:800, color: s.text,
+                      background:'rgba(255,255,255,0.6)', borderRadius:999,
+                      padding:'3px 14px', alignSelf:'flex-start',
+                    }}>
+                      STEP {s.step}
+                    </div>
+                    {/* Icon */}
+                    <div style={{ fontSize:'3.2rem', lineHeight:1 }}>{s.icon}</div>
+                    {/* Label */}
+                    <div style={{ fontSize:'1.6rem', fontWeight:900, color: s.text, textAlign:'center', lineHeight:1.2 }}>
+                      {s.label}
+                    </div>
+                    <div style={{ fontSize:'1.1rem', color: s.text, opacity:0.75, textAlign:'center' }}>
+                      {s.sub}
+                    </div>
+                    {/* Item list */}
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, width:'100%', marginTop:4 }}>
+                      {s.items.map(it => (
+                        <div key={it} style={{
+                          fontSize:'1.05rem', color: s.text,
+                          background:'rgba(255,255,255,0.55)',
+                          borderRadius:8, padding:'5px 10px',
+                          fontWeight:600, textAlign:'center',
+                        }}>
+                          {it}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Arrow between steps */}
+                  {i < PIPE_STEPS.length - 1 && (
+                    <div className="pipe-arrow slide-r" style={{ flexShrink:0, padding:'0 2px' }}>
+                      ➜
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* MLOps Feedback Loop */}
+            <div style={{
+              marginTop: 28,
+              background: '#fff7ed',
+              border: '2.5px dashed #fb923c',
+              borderRadius: 18,
+              padding: '20px 32px',
+              display: 'flex', alignItems: 'center', gap: 20,
+            }}>
+              {/* SVG Loop arrow */}
+              <svg width="100" height="36" viewBox="0 0 100 36" fill="none" style={{ flexShrink:0 }}>
+                <path
+                  d="M 90 8 Q 50 -4 10 8 L 10 28 Q 50 40 90 28 Z"
+                  fill="none" stroke="#fb923c" strokeWidth="3"
+                  strokeDasharray="10 6"
+                  className="flow-line"
+                />
+                <polygon points="88,4 96,18 80,18" fill="#fb923c"/>
+              </svg>
+              <div>
+                <div style={{ fontSize:'1.6rem', fontWeight:900, color:'#c2410c' }}>
+                  🔄 MLOps 피드백 루프
+                </div>
+                <div style={{ fontSize:'1.2rem', color:'#92400e', marginTop:6, lineHeight:1.5 }}>
+                  현장 결과 → 재학습 데이터 → 모델 성능 개선 → 재배포 · 지속적 정확도 향상 (Continual Learning)
+                </div>
+              </div>
+              <div style={{ marginLeft:'auto', display:'flex', gap:20, flexShrink:0 }}>
+                {[
+                  { label:'재학습 주기', val:'월 1회' },
+                  { label:'성능 개선율', val:'+2.3%' },
+                  { label:'모델 버전', val:'v4.1' },
+                ].map(m => (
+                  <div key={m.label} style={{
+                    textAlign:'center',
+                    background:'#fff',
+                    border:'2px solid #fed7aa',
+                    borderRadius:14, padding:'12px 20px',
+                  }}>
+                    <div style={{ fontSize:'1.9rem', fontWeight:900, color:'#c2410c' }}>{m.val}</div>
+                    <div style={{ fontSize:'1.05rem', color:'#92400e', marginTop:2 }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ══ SECTION 2: AI PIPELINE CARDS ══ */}
+          <section>
+            <div style={{ fontSize:'1.8rem', fontWeight:800, color:'#1e1b4b', marginBottom:6 }}>
+              🤖 AI 파이프라인 현황
+            </div>
+            <div style={{ fontSize:'1.2rem', color:'#64748b', marginBottom:22 }}>
+              6개 핵심 AI 모델의 성능 지표 및 운영 현황
+            </div>
+
+            <div style={{
+              display:'grid',
+              gridTemplateColumns:'repeat(3, 1fr)',
+              gap:24,
+            }}>
+              {AI_PIPELINES.map((p, i) => (
+                <div
+                  key={p.label}
+                  className="ai-card"
+                  onClick={() => setActiveCard(activeCard === i ? null : i)}
+                  style={{
+                    cursor:'pointer',
+                    outline: activeCard === i ? '3px solid #6366f1' : 'none',
+                  }}
+                >
+                  {/* Card header */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                      <div style={{
+                        fontSize:'2.8rem', lineHeight:1,
+                        background:'#f0f4ff', borderRadius:14,
+                        padding:'10px 14px',
+                      }}>
+                        {p.icon}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'1.9rem', fontWeight:900, color:'#1e1b4b', lineHeight:1.2 }}>
+                          {p.label}
+                        </div>
+                        <div style={{ fontSize:'1.2rem', color:'#64748b', marginTop:2 }}>{p.name}</div>
+                      </div>
+                    </div>
+                    <span className="status-badge" style={{ background: p.statusColor.bg, color: p.statusColor.text }}>
+                      {p.status === '운영 중' && (
+                        <span className="pulse-dot" style={{
+                          width:10, height:10, borderRadius:'50%',
+                          background: p.statusColor.text, display:'inline-block',
+                        }}/>
+                      )}
+                      {p.status}
+                    </span>
+                  </div>
+
+                  {/* Model name */}
+                  <div style={{
+                    fontSize:'1.25rem', color:'#4338ca', fontWeight:700,
+                    background:'#e0e7ff', borderRadius:10, padding:'8px 16px',
+                  }}>
+                    🔬 {p.model}
+                  </div>
+
+                  {/* Accuracy bar */}
+                  <div>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                      <span style={{ fontSize:'1.3rem', fontWeight:700, color:'#475569' }}>성능 정확도</span>
+                      <span style={{ fontSize:'1.9rem', fontWeight:900, color:'#6366f1' }}>{p.acc}%</span>
+                    </div>
+                    <div className="prog-track">
+                      <div className="prog-fill" style={{ width:`${p.acc}%` }}/>
+                    </div>
+                  </div>
+
+                  {/* 3 stat chips */}
+                  <div style={{ display:'flex', gap:10 }}>
+                    {[p.chip1, p.chip2, p.chip3].map(c => (
+                      <div key={c.label} className="stat-chip">
+                        <div style={{ fontSize:'1.5rem', fontWeight:900, color:'#3730a3' }}>{c.val}</div>
+                        <div style={{ fontSize:'1.0rem', color:'#64748b', fontWeight:600 }}>{c.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tags */}
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    {p.tags.map(t => (
+                      <span key={t} style={{
+                        fontSize:'1.15rem', fontWeight:700,
+                        background:'#f1f5f9', color:'#475569',
+                        padding:'5px 14px', borderRadius:999,
+                        border:'1.5px solid #e2e8f0',
+                      }}>
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Description (show when active) */}
+                  {activeCard === i && (
+                    <div style={{
+                      fontSize:'1.3rem', lineHeight:1.65, color:'#334155',
+                      background:'#f8fafc', borderRadius:12,
+                      padding:'14px 18px',
+                      border:'1.5px solid #e0e7ff',
+                    }}>
+                      {p.desc}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ══ FOOTER ══ */}
+          <footer style={{
+            textAlign:'center', padding:'16px',
+            fontSize:'1.1rem', color:'#94a3b8',
+          }}>
+            AX-SPRINT v1.0 · 국토교통부 AI 응용제품 신속상용화 지원사업 · © 2025 AX Technologies
+          </footer>
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

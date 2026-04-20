@@ -1,12 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import { Zone } from '@ax/shared';
 import { CreateZoneDto, UpdateZoneDto } from './dto/create-zone.dto';
 
+const CACHE_TTL = 10;
+
 @Injectable()
 export class ZonesService {
-  constructor(private readonly couch: CouchService) {}
+  private readonly computingKeys = new Set<string>();
+
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   async create(orgId: string, dto: CreateZoneDto, userId: string): Promise<Zone> {
     const id = `zone:${orgId}:zone_${uuid().slice(0, 12)}`;
@@ -33,21 +42,43 @@ export class ZonesService {
   }
 
   async findByFloor(orgId: string, floorId: string): Promise<Zone[]> {
-    const { docs } = await this.couch.find<Zone>(
-      orgId,
-      { docType: 'zone', orgId, floorId },
-      { limit: 100, sort: [{ name: 'asc' }] },
-    );
-    return docs;
+    const cacheKey = `zones:floor:${orgId}:${floorId}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const { docs } = await this.couch.find<Zone>(orgId, { docType: 'zone', orgId, floorId }, { limit: 100, sort: [{ name: 'asc' }] });
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(docs));
+      return docs;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   async findByBuilding(orgId: string, buildingId: string): Promise<Zone[]> {
-    const { docs } = await this.couch.find<Zone>(
-      orgId,
-      { docType: 'zone', orgId, buildingId },
-      { limit: 200 },
-    );
-    return docs;
+    const cacheKey = `zones:building:${orgId}:${buildingId ?? 'all'}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const selector: Record<string, any> = { docType: 'zone', orgId };
+      if (buildingId) selector.buildingId = buildingId;
+      const { docs } = await this.couch.find<Zone>(orgId, selector, { limit: 200 });
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(docs));
+      return docs;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   async findById(orgId: string, id: string): Promise<Zone> {

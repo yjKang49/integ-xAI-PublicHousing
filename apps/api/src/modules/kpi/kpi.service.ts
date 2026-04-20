@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import {
@@ -6,11 +8,17 @@ import {
   ComplaintStatus, SeverityLevel,
 } from '@ax/shared';
 
+const CACHE_TTL = 30;
+
 @Injectable()
 export class KpiService {
   private readonly logger = new Logger(KpiService.name);
+  private readonly computingKeys = new Set<string>();
 
-  constructor(private readonly couch: CouchService) {}
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   // ── KPI 조회 (저장된 레코드) ──────────────────────────────────
   async findAll(orgId: string, complexId?: string, limit = 12) {
@@ -132,35 +140,57 @@ export class KpiService {
 
   // ── 대시보드 요약 (최신 KPI + 현재 월 실시간 지표) ────────────
   async getSummary(orgId: string, complexId: string) {
-    // 저장된 최근 KPI 레코드
-    const { docs: history } = await this.couch.find<KPIRecord>(orgId, {
-      docType: 'kpiRecord',
-      orgId,
-      complexId,
-    }, { limit: 6, sort: [{ periodStart: 'desc' }] });
+    const cacheKey = `kpi:summary:${orgId}:${complexId ?? 'all'}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    // 현재 월 실시간 집계
-    const now   = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const end   = now.toISOString();
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
 
-    const [complaints, defects] = await Promise.all([
-      this.fetchComplaints(orgId, complexId, start, end),
-      this.fetchDefects(orgId, complexId, start, end),
-    ]);
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
 
-    return {
-      history,
-      currentMonth: {
-        totalComplaints: complaints.length,
-        resolvedComplaints: complaints.filter(
-          (c) => c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED,
-        ).length,
-        totalDefects: defects.length,
-        criticalDefects: defects.filter((d) => d.severity === SeverityLevel.CRITICAL).length,
-        repairedDefects: defects.filter((d) => d.isRepaired).length,
-      },
-    };
+    try {
+      // 저장된 최근 KPI 레코드
+      const { docs: history } = await this.couch.find<KPIRecord>(orgId, {
+        docType: 'kpiRecord',
+        orgId,
+        complexId,
+      }, { limit: 6, sort: [{ periodStart: 'desc' }] });
+
+      // 현재 월 실시간 집계
+      const now   = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const end   = now.toISOString();
+
+      const [complaints, defects] = await Promise.all([
+        this.fetchComplaints(orgId, complexId, start, end),
+        this.fetchDefects(orgId, complexId, start, end),
+      ]);
+
+      const result = {
+        history,
+        currentMonth: {
+          totalComplaints: complaints.length,
+          resolvedComplaints: complaints.filter(
+            (c) => c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED,
+          ).length,
+          totalDefects: defects.length,
+          criticalDefects: defects.filter((d) => d.severity === SeverityLevel.CRITICAL).length,
+          repairedDefects: defects.filter((d) => d.isRepaired).length,
+        },
+      };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
+    }
   }
 
   // ── 내부 헬퍼 ─────────────────────────────────────────────────

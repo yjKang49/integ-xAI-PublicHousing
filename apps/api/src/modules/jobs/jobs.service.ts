@@ -5,10 +5,14 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common'
+import { InjectRedis } from '@nestjs-modules/ioredis'
+import Redis from 'ioredis'
 import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
 import { v4 as uuid } from 'uuid'
 import { CouchService } from '../../database/couch.service'
+
+const CACHE_TTL = 10
 import { JobType, JobStatus, QUEUE_FOR_JOB_TYPE } from '@ax/shared'
 import { QUEUE_AI, QUEUE_JOB } from '../../common/queue/queue.constants'
 import { CreateJobDto, UpdateJobStatusDto } from './dto/create-job.dto'
@@ -55,11 +59,13 @@ export interface JobQueryOptions {
 @Injectable()
 export class JobsService {
   private readonly logger = new Logger(JobsService.name)
+  private readonly computingKeys = new Set<string>()
 
   constructor(
     private readonly couch: CouchService,
     @InjectQueue(QUEUE_AI) private readonly aiQueue: Queue,
     @InjectQueue(QUEUE_JOB) private readonly jobQueue: Queue,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   /**
@@ -127,33 +133,30 @@ export class JobsService {
     orgId: string,
     query: JobQueryOptions,
   ): Promise<{ data: JobDoc[]; meta: { page: number; limit: number; total: number; hasNext: boolean } }> {
-    const selector: Record<string, any> = { docType: 'job', orgId }
-    if (query.type)      selector.type      = query.type
-    if (query.status)    selector.status    = query.status
-    if (query.complexId) selector.complexId = query.complexId
-
-    const page  = Math.max(1, query.page  ?? 1)
-    const limit = Math.min(query.limit ?? 20, 100)
-
-    // total 카운트용 쿼리 (limit 0 → 전체 fetch)
-    const { docs: allDocs } = await this.couch.find<JobDoc>(orgId, selector, { limit: 0 })
-    const total = allDocs.length
-
-    const { docs } = await this.couch.find<JobDoc>(orgId, selector, {
-      limit,
-      skip: (page - 1) * limit,
-      sort: [{ createdAt: 'desc' }],
-    })
-
-    return {
-      data: docs,
-      meta: {
-        page,
-        limit,
-        total,
-        hasNext: page * limit < total,
-      },
+    const cacheKey = `jobs:list:${orgId}:${JSON.stringify(query)}`
+    const cached = await this.redis.get(cacheKey)
+    if (cached) return JSON.parse(cached)
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150))
+      const retry = await this.redis.get(cacheKey)
+      if (retry) return JSON.parse(retry)
     }
+    this.computingKeys.add(cacheKey)
+    const fresh = await this.redis.get(cacheKey)
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh) }
+    try {
+      const selector: Record<string, any> = { docType: 'job', orgId }
+      if (query.type)      selector.type      = query.type
+      if (query.status)    selector.status    = query.status
+      if (query.complexId) selector.complexId = query.complexId
+      const page  = Math.max(1, query.page  ?? 1)
+      const limit = Math.min(query.limit ?? 20, 100)
+      const { docs } = await this.couch.find<JobDoc>(orgId, selector, { limit: limit + 1, skip: (page - 1) * limit, sort: [{ createdAt: 'desc' }] })
+      const hasNext = docs.length > limit
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, total: docs.length, hasNext } }
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result))
+      return result
+    } finally { this.computingKeys.delete(cacheKey) }
   }
 
   /**

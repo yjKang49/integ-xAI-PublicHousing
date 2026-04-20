@@ -10,6 +10,7 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { HeaderComponent } from '../header/header.component';
 import { AuthStore } from '../../core/store/auth.store';
 import { AlertStore } from '../../core/store/alert.store';
+import { SystemLogComponent } from '../../shared/components/system-log/system-log.component';
 
 @Component({
   selector: 'ax-shell',
@@ -23,6 +24,7 @@ import { AlertStore } from '../../core/store/alert.store';
     MatButtonModule,
     SidebarComponent,
     HeaderComponent,
+    SystemLogComponent,
   ],
   template: `
     <mat-sidenav-container class="ax-shell">
@@ -43,6 +45,8 @@ import { AlertStore } from '../../core/store/alert.store';
         </main>
       </mat-sidenav-content>
     </mat-sidenav-container>
+
+    <ax-system-log />
   `,
   styles: [`
     .ax-shell {
@@ -69,6 +73,7 @@ import { AlertStore } from '../../core/store/alert.store';
       flex: 1;
       overflow-y: auto;
       padding: var(--ax-page-gutter);
+      padding-bottom: calc(var(--ax-page-gutter) + 28px); /* clear system log bar */
       background: var(--ax-color-bg-canvas);
     }
   `],

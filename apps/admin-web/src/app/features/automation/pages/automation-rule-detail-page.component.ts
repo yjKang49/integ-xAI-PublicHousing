@@ -372,9 +372,9 @@ export class AutomationRuleDetailPageComponent implements OnInit {
 
   back() { this.router.navigate(['/automation/rules']); }
 
-  categoryLabel(cat: string) { return AUTOMATION_RULE_CATEGORY_LABELS[cat as any] ?? cat; }
-  triggerLabel(t: string)    { return AUTOMATION_TRIGGER_TYPE_LABELS[t as any] ?? t; }
-  actionLabel(t: string)     { return AUTOMATION_ACTION_TYPE_LABELS[t as any] ?? t; }
+  categoryLabel(cat: string) { return (AUTOMATION_RULE_CATEGORY_LABELS as Record<string, string>)[cat] ?? cat; }
+  triggerLabel(t: string)    { return (AUTOMATION_TRIGGER_TYPE_LABELS as Record<string, string>)[t] ?? t; }
+  actionLabel(t: string)     { return (AUTOMATION_ACTION_TYPE_LABELS as Record<string, string>)[t] ?? t; }
 
   actionIcon(t: string) {
     const m: Record<string, string> = {

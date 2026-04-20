@@ -4,7 +4,11 @@
 import {
   Injectable, NotFoundException, ForbiddenException, Logger,
 } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { CouchService } from '../../database/couch.service';
+
+const CACHE_TTL = 10;
 import {
   AutomationExecution, AutomationExecutionStatus, UpdateExecutionResultInput,
 } from '@ax/shared';
@@ -13,8 +17,12 @@ import nano from 'nano';
 @Injectable()
 export class AutomationExecutionsService {
   private readonly logger = new Logger(AutomationExecutionsService.name);
+  private readonly computingKeys = new Set<string>();
 
-  constructor(private readonly couch: CouchService) {}
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   /** 실행 이력 목록 조회 */
   async findAll(orgId: string, query: {
@@ -24,29 +32,32 @@ export class AutomationExecutionsService {
     page?: string;
     limit?: string;
   }) {
-    const selector: nano.MangoSelector = { docType: 'automationExecution', orgId };
-    if (query.ruleId) selector.ruleId = query.ruleId;
-    if (query.status) selector.status = query.status;
-    if (query.triggerType) selector.triggerType = query.triggerType;
-
-    const page = query.page ? +query.page : 1;
-    const limit = Math.min(query.limit ? +query.limit : 30, 100);
-
-    const { docs: countDocs } = await this.couch.find<{ _id: string }>(orgId, selector, {
-      limit: 0, fields: ['_id'],
-    });
-
-    const { docs } = await this.couch.find<AutomationExecution>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ startedAt: 'desc' as const }],
-    });
-
-    const hasNext = docs.length > limit;
-    return {
-      data: hasNext ? docs.slice(0, limit) : docs,
-      meta: { page, limit, hasNext, total: countDocs.length },
-    };
+    const cacheKey = `automation-execs:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const selector: nano.MangoSelector = { docType: 'automationExecution', orgId };
+      if (query.ruleId) selector.ruleId = query.ruleId;
+      if (query.status) selector.status = query.status;
+      if (query.triggerType) selector.triggerType = query.triggerType;
+      const page = query.page ? +query.page : 1;
+      const limit = Math.min(query.limit ? +query.limit : 30, 100);
+      const { docs } = await this.couch.find<AutomationExecution>(orgId, selector, {
+        limit: limit + 1, skip: (page - 1) * limit, sort: [{ startedAt: 'desc' as const }],
+      });
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   /** 실행 이력 단건 조회 */
@@ -95,6 +106,19 @@ export class AutomationExecutionsService {
 
   /** 전체 실행 통계 요약 */
   async getSummary(orgId: string) {
+    const cacheKey = `automation-execs:summary:${orgId}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    let result: any;
+    try {
     const { docs } = await this.couch.find<AutomationExecution>(orgId, {
       docType: 'automationExecution', orgId,
     }, { limit: 1000, fields: ['status', 'triggerType', 'durationMs', 'startedAt'] });
@@ -112,7 +136,7 @@ export class AutomationExecutionsService {
       return acc;
     }, {} as Record<string, number>);
 
-    return {
+    result = {
       total,
       completed,
       failed,
@@ -120,5 +144,8 @@ export class AutomationExecutionsService {
       avgDurationMs,
       byTriggerType,
     };
+    await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+    return result;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 }

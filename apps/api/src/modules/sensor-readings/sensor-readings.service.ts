@@ -2,8 +2,12 @@
 // Phase 2-8: 센서 측정값 수집 & 시계열 조회 서비스
 
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
+
+const CACHE_TTL = 10;
 import { SensorsService } from '../sensors/sensors.service';
 import { AlertsService } from '../alerts/alerts.service';
 import {
@@ -16,11 +20,13 @@ import { IngestReadingDto, BatchIngestDto, SensorReadingQueryDto } from './dto/s
 @Injectable()
 export class SensorReadingsService {
   private readonly logger = new Logger(SensorReadingsService.name);
+  private readonly computingKeys = new Set<string>();
 
   constructor(
     private readonly couch: CouchService,
     private readonly sensors: SensorsService,
     private readonly alerts: AlertsService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ── 단일 ingestion ──────────────────────────────────────────────────
@@ -90,26 +96,33 @@ export class SensorReadingsService {
 
   // ── 시계열 조회 ────────────────────────────────────────────────────
   async findReadings(orgId: string, query: SensorReadingQueryDto): Promise<{ data: SensorReading[]; meta: any }> {
-    const selector: Record<string, any> = { docType: 'sensorReading', orgId };
-    if (query.deviceId)  selector.deviceId  = query.deviceId;
-    if (query.deviceKey) selector.deviceKey = query.deviceKey;
-    if (query.complexId) selector.complexId = query.complexId;
-
-    // 시간 범위 필터
-    if (query.from || query.to) {
-      selector.recordedAt = {};
-      if (query.from) selector.recordedAt.$gte = query.from;
-      if (query.to)   selector.recordedAt.$lte = query.to;
+    const cacheKey = `sensor-readings:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
     }
-
-    const limit = Math.min(query.limit ? +query.limit : 100, 1000);
-
-    const { docs } = await this.couch.find<SensorReading>(orgId, selector, {
-      limit,
-      sort: [{ recordedAt: 'desc' }],
-    });
-
-    return { data: docs, meta: { limit, count: docs.length } };
+    this.computingKeys.add(cacheKey);
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
+    try {
+      const selector: Record<string, any> = { docType: 'sensorReading', orgId };
+      if (query.deviceId)  selector.deviceId  = query.deviceId;
+      if (query.deviceKey) selector.deviceKey = query.deviceKey;
+      if (query.complexId) selector.complexId = query.complexId;
+      if (query.from || query.to) {
+        selector.recordedAt = {};
+        if (query.from) selector.recordedAt.$gte = query.from;
+        if (query.to)   selector.recordedAt.$lte = query.to;
+      }
+      const limit = Math.min(query.limit ? +query.limit : 100, 1000);
+      const { docs } = await this.couch.find<SensorReading>(orgId, selector, { limit, sort: [{ recordedAt: 'desc' }] });
+      const result = { data: docs, meta: { limit, count: docs.length } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally { this.computingKeys.delete(cacheKey); }
   }
 
   // ── 최신값 조회 (센서 기기별 마지막 1개) ──────────────────────────

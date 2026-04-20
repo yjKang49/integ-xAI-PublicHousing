@@ -2,15 +2,24 @@
 import {
   Injectable, NotFoundException, UnprocessableEntityException,
 } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { v4 as uuid } from 'uuid';
 import { CouchService } from '../../database/couch.service';
 import { WorkOrder, WorkOrderStatus, WorkOrderEvent, ComplaintStatus } from '@ax/shared';
 import { WORK_ORDER_TRANSITIONS } from '@ax/shared';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, WorkOrderQueryDto } from './dto/work-order.dto';
 
+const CACHE_TTL = 10;
+
 @Injectable()
 export class WorkOrdersService {
-  constructor(private readonly couch: CouchService) {}
+  private readonly computingKeys = new Set<string>();
+
+  constructor(
+    private readonly couch: CouchService,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   async create(orgId: string, dto: CreateWorkOrderDto, userId: string): Promise<WorkOrder> {
     const now = new Date().toISOString();
@@ -78,23 +87,45 @@ export class WorkOrdersService {
   }
 
   async findAll(orgId: string, query: WorkOrderQueryDto) {
-    const selector: Record<string, any> = { docType: 'workOrder', orgId };
-    if (query.complexId)   selector.complexId   = query.complexId;
-    if (query.complaintId) selector.complaintId = query.complaintId;
-    if (query.status)      selector.status      = query.status;
-    if (query.assignedTo)  selector.assignedTo  = query.assignedTo;
+    const cacheKey = `workOrders:list:${orgId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
 
-    const page  = query.page  ? +query.page  : 1;
-    const limit = Math.min(query.limit ? +query.limit : 20, 100);
+    // Cache stampede prevention: poll until the computing request finishes
+    while (this.computingKeys.has(cacheKey)) {
+      await new Promise(r => setTimeout(r, 150));
+      const retry = await this.redis.get(cacheKey);
+      if (retry) return JSON.parse(retry);
+    }
 
-    const { docs } = await this.couch.find<WorkOrder>(orgId, selector, {
-      limit: limit + 1,
-      skip: (page - 1) * limit,
-      sort: [{ scheduledDate: 'asc' }],
-    });
+    this.computingKeys.add(cacheKey);
+    // Double-check cache after acquiring lock (another request may have just finished)
+    const fresh = await this.redis.get(cacheKey);
+    if (fresh) { this.computingKeys.delete(cacheKey); return JSON.parse(fresh); }
 
-    const hasNext = docs.length > limit;
-    return { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+    try {
+      const selector: Record<string, any> = { docType: 'workOrder', orgId };
+      if (query.complexId)   selector.complexId   = query.complexId;
+      if (query.complaintId) selector.complaintId = query.complaintId;
+      if (query.status)      selector.status      = query.status;
+      if (query.assignedTo)  selector.assignedTo  = query.assignedTo;
+
+      const page  = query.page  ? +query.page  : 1;
+      const limit = Math.min(query.limit ? +query.limit : 20, 100);
+
+      const { docs } = await this.couch.find<WorkOrder>(orgId, selector, {
+        limit: limit + 1,
+        skip: (page - 1) * limit,
+        sort: [{ scheduledDate: 'asc' }],
+      });
+
+      const hasNext = docs.length > limit;
+      const result = { data: hasNext ? docs.slice(0, limit) : docs, meta: { page, limit, hasNext } };
+      await this.redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    } finally {
+      this.computingKeys.delete(cacheKey);
+    }
   }
 
   async update(orgId: string, id: string, dto: UpdateWorkOrderDto, userId: string): Promise<WorkOrder> {
