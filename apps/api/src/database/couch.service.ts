@@ -34,13 +34,23 @@ export class CouchService implements OnModuleInit {
       },
     });
 
-    // Ensure _users and _replicator DBs exist
-    await this.ensureSystemDatabases();
-
-    // Ensure indexes on all existing org databases
-    await this.ensureIndexesOnExistingDbs();
-
-    this.logger.log(`Connected to CouchDB at ${url}`);
+    const maxRetries = 15;
+    const retryDelayMs = 5000;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.ensureSystemDatabases();
+        await this.ensureIndexesOnExistingDbs();
+        this.logger.log(`Connected to CouchDB at ${url}`);
+        return;
+      } catch (err: any) {
+        if (attempt === maxRetries) {
+          this.logger.error(`CouchDB connection failed after ${maxRetries} attempts: ${err.message}`);
+          throw err;
+        }
+        this.logger.warn(`CouchDB not ready (attempt ${attempt}/${maxRetries}), retrying in ${retryDelayMs / 1000}s... [${err.message}]`);
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+      }
+    }
   }
 
   /**
