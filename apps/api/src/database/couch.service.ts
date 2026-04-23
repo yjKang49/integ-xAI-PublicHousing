@@ -34,7 +34,12 @@ export class CouchService implements OnModuleInit {
       },
     });
 
-    const maxRetries = 15;
+    // 포트 바인딩을 블로킹하지 않도록 백그라운드에서 연결 재시도
+    this.connectWithRetry(url).catch(() => {});
+  }
+
+  private async connectWithRetry(url: string): Promise<void> {
+    const maxRetries = 30;
     const retryDelayMs = 5000;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -43,14 +48,11 @@ export class CouchService implements OnModuleInit {
         this.logger.log(`Connected to CouchDB at ${url}`);
         return;
       } catch (err: any) {
-        if (attempt === maxRetries) {
-          this.logger.error(`CouchDB connection failed after ${maxRetries} attempts: ${err.message}`);
-          throw err;
-        }
         this.logger.warn(`CouchDB not ready (attempt ${attempt}/${maxRetries}), retrying in ${retryDelayMs / 1000}s... [${err.message}]`);
         await new Promise(resolve => setTimeout(resolve, retryDelayMs));
       }
     }
+    this.logger.error(`CouchDB connection failed after ${maxRetries} attempts`);
   }
 
   /**
