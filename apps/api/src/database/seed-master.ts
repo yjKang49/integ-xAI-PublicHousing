@@ -23,9 +23,12 @@
  *   docker compose exec api node dist/src/database/seed-master.js
  */
 
-import * as dotenv from 'dotenv';
 import * as path from 'path';
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+try {
+  // 로컬 dev: .env 로드. prod 컨테이너엔 dotenv 미설치 + .env 부재 — silent skip.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+} catch { /* noop */ }
 
 import * as nano from 'nano';
 import * as bcrypt from 'bcrypt';
