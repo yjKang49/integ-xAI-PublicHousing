@@ -14,7 +14,7 @@
     "sourceMap": true,
     "declaration": true,
     "paths": {
-      "@ax/shared": ["../../packages/shared/src/index.ts"]
+      "@ax/shared": ["../../packages/shared/dist/index.js"]
     },
     "baseUrl": "."
   },

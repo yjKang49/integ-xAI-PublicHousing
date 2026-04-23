@@ -7,7 +7,7 @@ COPY apps/job-worker/package.json ./apps/job-worker/
 RUN yarn install --frozen-lockfile
 COPY packages/shared ./packages/shared
 COPY apps/job-worker ./apps/job-worker
-RUN yarn workspace @ax/shared build 2>/dev/null || true
+RUN yarn workspace @ax/shared build
 RUN yarn workspace @ax/job-worker build
 
 FROM node:20-alpine

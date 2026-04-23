@@ -14,7 +14,7 @@ COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 
 # Build shared then API
-RUN yarn workspace @ax/shared build 2>/dev/null || true
+RUN yarn workspace @ax/shared build
 RUN yarn workspace @ax/api build
 
 # ── Runtime stage ──────────────────────────────
