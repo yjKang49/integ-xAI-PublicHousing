@@ -168,7 +168,7 @@ services:
     runtime: image
     image:
       url: docker.io/library/couchdb:3.3
-    plan: free
+    plan: starter
     region: singapore
     disk:
       name: couchdb-data
