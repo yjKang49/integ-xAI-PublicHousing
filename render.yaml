@@ -190,7 +190,7 @@ services:
     runtime: image
     image:
       url: docker.io/minio/minio:RELEASE.2024-03-15T01-07-19Z
-    plan: free
+    plan: starter
     region: singapore
     startCommand: server /data --console-address ":9001"
     disk:
@@ -208,7 +208,7 @@ services:
 # ──────────────────────────────────────────────────────────
   - type: redis
     name: ax-redis
-    plan: free
+    plan: starter
     region: singapore
     maxmemoryPolicy: noeviction
     ipAllowList: []   # 내부 서비스만 접근 허용
