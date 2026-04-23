@@ -30,7 +30,7 @@ services:
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
-    plan: free
+    plan: starter
     region: singapore
     healthCheckPath: /api/v1/health
     envVars:
