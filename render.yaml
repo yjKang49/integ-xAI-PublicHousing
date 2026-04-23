@@ -30,7 +30,7 @@ services:
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: singapore
     healthCheckPath: /api/v1/health
     envVars:
@@ -166,6 +166,7 @@ services:
   # ──────────────────────────────────────────────────────────
   - type: pserv
     name: couchdb
+    runtime: image
     image:
       url: docker.io/library/couchdb:3.3
     plan: starter
@@ -187,6 +188,7 @@ services:
   # ──────────────────────────────────────────────────────────
   - type: pserv
     name: minio
+    runtime: image
     image:
       url: docker.io/minio/minio:RELEASE.2024-03-15T01-07-19Z
     plan: starter
