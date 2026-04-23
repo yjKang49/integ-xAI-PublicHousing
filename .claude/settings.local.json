@@ -67,7 +67,15 @@
       "Bash(find apps/api/src/modules -name \"*.controller.ts\" -exec basename {} \\\\;)",
       "Bash(git mv *)",
       "Bash(git checkout *)",
-      "WebFetch(domain:www.notion.so)"
+      "WebFetch(domain:www.notion.so)",
+      "PowerShell(Get-Command *)",
+      "WebFetch(domain:render.com)",
+      "WebFetch(domain:community.render.com)",
+      "WebSearch",
+      "WebFetch(domain:render.discourse.group)",
+      "Bash(git -C C:/Users/on/workspace/integ-xAI-PublicHousing status)",
+      "Bash(git -C C:/Users/on/workspace/integ-xAI-PublicHousing diff)",
+      "Bash(git *)"
     ]
   }
 }

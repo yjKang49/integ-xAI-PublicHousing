@@ -195,7 +195,7 @@ services:
       url: docker.io/minio/minio:RELEASE.2024-03-15T01-07-19Z
     plan: starter
     region: singapore
-    dockerCommand: server /data --console-address ":9001"
+    dockerCommand: minio server /data --console-address :9001
     disk:
       name: minio-data
       mountPath: /data

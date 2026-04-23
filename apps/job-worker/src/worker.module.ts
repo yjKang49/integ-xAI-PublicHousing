@@ -17,21 +17,25 @@ import { RuleEvaluatorService } from './services/rule-evaluator.service';
 import { RiskScoreCalculationProcessor } from './processors/risk-score-calculation.processor';
 import { MaintenanceRecommendationProcessor } from './processors/maintenance-recommendation.processor';
 
+// Render Managed Redis: redis://user:pass@host:port — URL 파싱으로 안전 추출
+function parseRedisConn(url: string) {
+  const u = new URL(url);
+  return {
+    host: u.hostname,
+    port: parseInt(u.port || '6379', 10),
+    username: u.username ? decodeURIComponent(u.username) : undefined,
+    password:
+      process.env.REDIS_PASSWORD ||
+      (u.password ? decodeURIComponent(u.password) : undefined),
+  };
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 
     BullModule.forRoot({
-      redis: {
-        host: (process.env.REDIS_URL ?? 'redis://localhost:6379')
-          .replace(/^redis:\/\//, '')
-          .split(':')[0],
-        port: parseInt(
-          (process.env.REDIS_URL ?? 'redis://localhost:6379').split(':')[2] ?? '6379',
-          10,
-        ),
-        password: process.env.REDIS_PASSWORD || undefined,
-      },
+      redis: parseRedisConn(process.env.REDIS_URL ?? 'redis://localhost:6379'),
     }),
 
     BullModule.registerQueue({ name: 'job-queue' }),

@@ -62,6 +62,20 @@ import { MaintenanceRecommendationsModule } from './modules/maintenance-recommen
 // TRL-8 보완: 외부 시스템 연동 (KALIS-FMS, 세움터)
 import { ExternalIntegrationsModule } from './modules/external-integrations/external-integrations.module';
 
+// Render Managed Redis 의 connectionString 은 redis://user:pass@host:port 형태이므로
+// URL 파싱으로 host/port/password 를 안전하게 추출. REDIS_PASSWORD 환경변수가 있으면 우선.
+function parseRedisConn(url: string) {
+  const u = new URL(url);
+  return {
+    host: u.hostname,
+    port: parseInt(u.port || '6379', 10),
+    username: u.username ? decodeURIComponent(u.username) : undefined,
+    password:
+      process.env.REDIS_PASSWORD ||
+      (u.password ? decodeURIComponent(u.password) : undefined),
+  };
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -71,21 +85,17 @@ import { ExternalIntegrationsModule } from './modules/external-integrations/exte
 
     // Bull queue (Redis-backed)
     BullModule.forRoot({
-      redis: {
-        host: (process.env.REDIS_URL ?? 'redis://localhost:6379').replace('redis://', '').split(':')[0],
-        port: parseInt((process.env.REDIS_URL ?? 'redis://localhost:6379').split(':')[2] ?? '6379'),
-        password: process.env.REDIS_PASSWORD || undefined,
-      },
+      redis: parseRedisConn(process.env.REDIS_URL ?? 'redis://localhost:6379'),
     }),
 
-    // Redis (cache + JWT deny-list)
+    // Redis (cache + JWT deny-list) — URL 자체에 인증이 포함되면 ioredis 가 자동 처리
     RedisModule.forRootAsync({
       useFactory: () => ({
         type: 'single',
         url: process.env.REDIS_URL ?? 'redis://localhost:6379',
-        options: {
-          password: process.env.REDIS_PASSWORD || undefined,
-        },
+        options: process.env.REDIS_PASSWORD
+          ? { password: process.env.REDIS_PASSWORD }
+          : {},
       }),
     }),
 
