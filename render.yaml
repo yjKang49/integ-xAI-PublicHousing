@@ -51,7 +51,7 @@ services:
 
       # CouchDB — 내부 프라이빗 서비스 hostname
       - key: COUCHDB_URL
-        value: http://couchdb:5984
+        value: http://couchdb-35dv:5984
       - key: COUCHDB_USER
         sync: false   # 대시보드에서 직접 입력
       - key: COUCHDB_PASSWORD
