@@ -100,7 +100,9 @@ services:
     dockerContext: .
     plan: starter
     region: singapore
-    port: 80
+    envVars:
+      - key: PORT
+        value: 80
 
   # ──────────────────────────────────────────────────────────
   # AI Worker — Phase 2 (AI 이미지·드론 영상 분석)
