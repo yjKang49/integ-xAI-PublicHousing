@@ -1727,161 +1727,114 @@ HousingComplex (공동주택 단지)
 
 ## 16. Render.com 배포
 
-GitHub 저장소를 Render.com Dashboard에서 서비스별로 직접 생성하여 배포합니다.
+저장소 루트의 `render.yaml` 을 사용하는 **Blueprint 기반 배포** 방식입니다. 7개 서비스를 한 번에 프로비저닝하며, 이후 git push 시 자동 재배포됩니다.
 
-### 서비스 구성
+### 서비스 구성 (`render.yaml` 정의)
 
-| 순서 | 서비스 이름 | Render 유형 | 소스 | 내부 URL |
-|------|------------|------------|------|---------|
-| 1 | `ax-redis` | Managed Redis | Render 관리형 | (자동 주입) |
-| 2 | `couchdb` | Private Service | `docker.io/couchdb:3.3` | `http://couchdb:5984` |
-| 3 | `minio` | Private Service | `docker.io/minio/minio` | `http://minio:9000` |
-| 4 | `api` | Web Service (Docker) | `apps/api/Dockerfile` | `http://api:3000` |
-| 5 | `admin-web` | Web Service (Docker) | `apps/admin-web/Dockerfile` | — |
+| 서비스 | 유형 | 소스 | 내부 통신 / 디스크 |
+|---|---|---|---|
+| `api` | Web (Docker) | `apps/api/Dockerfile` | NestJS REST, 포트 3000 |
+| `admin-web` | Web (Docker) | `apps/admin-web/Dockerfile` | Angular + Nginx, 포트 80 |
+| `ai-worker` | Worker (Docker) | `apps/ai-worker/Dockerfile` | Bull 큐 컨슈머 — AI 분석 |
+| `job-worker` | Worker (Docker) | `apps/job-worker/Dockerfile` | Bull 큐 컨슈머 — 보고서·RPA·일정 |
+| `couchdb` | Private Service (image) | `couchdb:3.3` | Disk 10GB · `/opt/couchdb/data` |
+| `minio` | Private Service (image) | `minio/minio` | Disk 20GB · `/data` (S3 호환) |
+| `ax-redis` | Managed Redis | Render 관리형 | 큐 + JWT deny-list |
 
-> **서비스 이름 주의:** `api`, `couchdb`, `minio` 는 위 표와 **정확히** 일치해야 합니다.  
-> `admin-web`의 `nginx.conf`가 `http://api:3000` 으로 프록시하고, API 환경 변수도 해당 이름을 내부 호스트명으로 사용합니다.
-
-> **플랜 주의:** Private Service 와 Persistent Disk 는 **Starter 플랜 이상**에서만 지원됩니다.
+> **플랜 주의:** Private Service · Persistent Disk · Shell 탭은 **Starter 플랜 이상** 에서만 동작합니다. Free 플랜으로는 시드 투입 불가.
 
 ### 사전 준비
 
-1. [render.com](https://render.com) 계정 생성 및 로그인
-2. **Dashboard** → **Account Settings** → **Git** → **Connect GitHub** → 저장소 접근 권한 허용
+1. [render.com](https://render.com) 계정 + GitHub 연동
+2. 본 저장소 `main` 브랜치 최신 push 상태 (모든 v0.3.1 fix 반영 필요)
+3. 비밀값 4쌍 미리 결정 (16자 이상 권장):
+   - CouchDB root user / pass
+   - MinIO root user / pass
 
-### 1단계: Managed Redis 생성
+### 1단계 — Blueprint 생성
 
-**New +** → **Redis**
+1. Dashboard → 좌측 **Blueprints** → **New Blueprint Instance**
+2. GitHub 저장소 선택, Branch: `main`
+3. Render 가 `render.yaml` 을 읽어 7개 서비스 목록을 표시
+4. **Apply** 클릭 → 자동 빌드 시작
 
-| 항목 | 값 |
-|------|----|
-| Name | `ax-redis` |
-| Plan | Starter |
-| Region | Singapore (또는 가장 가까운 리전) |
-| Max Memory Policy | `noeviction` |
+⚠️ **첫 부팅 시점의 환경변수가 disk 에 영구 고정됩니다.** Apply 직후 빌드가 진행되는 동안 2단계 환경변수를 입력하세요. 이후 비밀번호 회전은 disk 재생성 + 시드 재실행 절차가 필요합니다.
 
-**Create Redis** 클릭 후, **Internal Redis URL** 복사 → 4단계에서 사용
+### 2단계 — `sync: false` 환경변수 입력
 
-### 2단계: CouchDB Private Service 생성
+각 서비스 → **Environment** 탭. 매칭 쌍이 일치해야 정상 동작합니다.
 
-**New +** → **Private Service** → **Deploy an existing image**
+#### `couchdb` 서비스
 
-| 항목 | 값 |
-|------|----|
-| Name | **`couchdb`** |
-| Image URL | `docker.io/couchdb:3.3` |
-| Mount Path | `/opt/couchdb/data` (Disk 10 GB) |
+| 변수 | 값 |
+|---|---|
+| `COUCHDB_USER` | (사전 결정한 CouchDB user) |
+| `COUCHDB_PASSWORD` | (사전 결정한 CouchDB pass) |
 
-**Environment Variables:**
+#### `minio` 서비스
 
-| 키 | 값 |
-|----|----|
-| `COUCHDB_USER` | `admin` |
-| `COUCHDB_PASSWORD` | 강력한 비밀번호 |
+| 변수 | 값 |
+|---|---|
+| `MINIO_ROOT_USER` | (사전 결정한 MinIO user) |
+| `MINIO_ROOT_PASSWORD` | (사전 결정한 MinIO pass) |
 
-### 3단계: MinIO Private Service 생성
+#### `api` 서비스
 
-**New +** → **Private Service** → **Deploy an existing image**
+| 변수 | 값 |
+|---|---|
+| `COUCHDB_USER` | ↑ couchdb 와 **동일값** |
+| `COUCHDB_PASSWORD` | ↑ couchdb 와 **동일값** |
+| `AWS_ACCESS_KEY_ID` | ↑ MINIO_ROOT_USER 와 **동일값** |
+| `AWS_SECRET_ACCESS_KEY` | ↑ MINIO_ROOT_PASSWORD 와 **동일값** |
+| `CORS_ORIGINS` | admin-web 실제 URL (3단계 빌드 완료 후 입력) |
 
-| 항목 | 값 |
-|------|----|
-| Name | **`minio`** |
-| Image URL | `docker.io/minio/minio:RELEASE.2024-03-15T01-07-19Z` |
-| Start Command | `server /data --console-address ":9001"` |
-| Mount Path | `/data` (Disk 10 GB) |
+> `REDIS_URL`, `WORKER_SECRET`, `JWT_SECRET`, `JWT_REFRESH_SECRET` 는 `render.yaml` 의 `fromService` / `generateValue` 로 자동 주입됩니다.
+> `REDIS_PASSWORD` 는 비워두세요 — v0.3.1 이후 코드가 connectionString 에서 자동 추출.
 
-**Environment Variables:**
+### 3단계 — 빌드 완료 대기
 
-| 키 | 값 |
-|----|----|
-| `MINIO_ROOT_USER` | 액세스 키 |
-| `MINIO_ROOT_PASSWORD` | 시크릿 키 |
+모든 서비스가 `Live` (녹색) 가 될 때까지 8~12분. 첫 빌드 완료 후 admin-web URL 을 확인하여 위 `CORS_ORIGINS` 에 반영 → api 자동 재배포.
 
-### 4단계: API Web Service 생성
+### 4단계 — 시드 데이터 1회 투입
 
-**New +** → **Web Service** → GitHub 저장소 선택
-
-| 항목 | 값 |
-|------|----|
-| Name | **`api`** |
-| Runtime | **Docker** |
-| Dockerfile Path | `./apps/api/Dockerfile` |
-| Docker Context Directory | `.` |
-
-**Environment Variables:**
-
-| 키 | 값 |
-|----|----|
-| `NODE_ENV` | `production` |
-| `PORT` | `3000` |
-| `COUCHDB_URL` | `http://couchdb:5984` |
-| `COUCHDB_USER` | 2단계에서 설정한 값 |
-| `COUCHDB_PASSWORD` | 2단계에서 설정한 값 |
-| `REDIS_URL` | 1단계 Internal Redis URL |
-| `S3_ENDPOINT` | `http://minio:9000` |
-| `S3_REGION` | `ap-northeast-2` |
-| `S3_BUCKET` | `ax-media` |
-| `AWS_ACCESS_KEY_ID` | 3단계 `MINIO_ROOT_USER` 값 |
-| `AWS_SECRET_ACCESS_KEY` | 3단계 `MINIO_ROOT_PASSWORD` 값 |
-| `JWT_SECRET` | 32자 이상 랜덤 문자열 |
-| `JWT_REFRESH_SECRET` | 32자 이상 랜덤 문자열 |
-| `JWT_EXPIRES_IN` | `15m` |
-| `JWT_REFRESH_EXPIRES_IN` | `7d` |
-| `CORS_ORIGINS` | `http://localhost:4200` *(임시 — 5단계 후 업데이트)* |
-| `WORKER_SECRET` | 랜덤 문자열 |
-
-**Create Web Service** 클릭 → 빌드 및 배포 완료까지 대기 (최초 빌드 10~15분 소요)
-
-### 5단계: Admin Web Service 생성
-
-**New +** → **Web Service** → 동일 저장소 선택
-
-| 항목 | 값 |
-|------|----|
-| Name | `admin-web` |
-| Runtime | **Docker** |
-| Dockerfile Path | `./apps/admin-web/Dockerfile` |
-| Docker Context Directory | `.` |
-
-**Create Web Service** 클릭 → 배포 완료 후 부여된 URL 확인 (예: `https://admin-web.onrender.com`)
-
-### 6단계: CORS_ORIGINS 업데이트
-
-**Dashboard** → `api` 서비스 → **Environment** 탭
-
-```
-CORS_ORIGINS=https://admin-web.onrender.com
-```
-
-**Save Changes** → 자동 재배포 완료까지 대기
-
-### 7단계: MinIO 버킷 초기화
-
-**Dashboard** → `api` 서비스 → **Shell** 탭
+**api** 서비스 → 상단 **Shell** 탭에서:
 
 ```bash
-curl -sO https://dl.min.io/client/mc/release/linux-amd64/mc
-chmod +x mc
-./mc alias set local http://minio:9000 $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
-./mc mb --ignore-existing local/ax-media
-./mc anonymous set download local/ax-media/public
+NODE_ENV=production node dist/src/database/seed-master.js
 ```
 
-### 8단계: 시드 데이터 세딩
+성공 시 사용자 6명 + 마스터/샘플 데이터 일괄 투입. 디스크가 보존되므로 **시드는 최초 1회만** 실행하면 되고, 이후 git push 로 인한 재배포 시에는 재실행 불필요합니다.
 
-**Dashboard** → `api` 서비스 → **Shell** 탭
+### 5단계 — 로그인 검증
 
 ```bash
-# 통합 마스터 시드 (모든 샘플 데이터 한 번에 투입)
-node dist/src/database/seed-master
+curl -i https://<api-url>.onrender.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@happy-housing.kr","password":"Admin@1234"}'
 ```
 
-### 접속 확인
+`201 Created` + accessToken 반환 → 배포 완료. 이후 admin-web URL 에서 같은 자격증명으로 UI 로그인.
 
-| 서비스 | URL |
-|--------|-----|
-| 관리자 웹 | `https://admin-web.onrender.com` |
-| API Swagger | `https://api.onrender.com/api/docs` |
+> ⚠️ **운영 전환 전** SUPER_ADMIN / ORG_ADMIN 두 계정 비밀번호는 반드시 변경하세요. 시드 비밀번호는 코드(`apps/api/src/database/seed-master.ts`)에 평문으로 노출되어 있습니다.
+
+### 트러블슈팅
+
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| api 가 `CouchDB not ready, retrying...` 30회 후 실패 | COUCHDB_USER/PASSWORD 불일치, 또는 disk 에 다른 비번이 영구 고정됨 | 두 서비스의 env 가 정확히 같은지 확인. 다르면 disk 재생성 후 시드 재실행 |
+| MinIO 가 `exited with status 128` | image 런타임에서 `dockerCommand` 가 `server` 단독 인자로 실행됨 | render.yaml 에 `dockerCommand: minio server /data --console-address :9001` 확인 (v0.3.1 fix) |
+| Worker 가 `Cannot find module .../dist/src/main` | tsconfig rootDir 미설정 시 빌드 출력 경로 변동 | `apps/<worker>/tsconfig.json` 에 `rootDir: "./"` 확인 (v0.3.1 fix) |
+| Worker 가 `ECONNREFUSED redis://...` | `redis://user:pass@host:port` 의 host 자리에 user 가 들어가는 split 버그 | `BullModule`/`RedisModule` 이 `new URL()` 기반 파서 사용 확인 (v0.3.1 fix) |
+| 시드 실행 시 `Cannot find module 'dotenv'` | dotenv 가 devDep 라 prod 컨테이너에 미설치 | seed 파일들의 dotenv import 가 `try/require` 가드 적용 확인 (v0.3.1 fix). 임시 우회: `npm install --no-save dotenv` |
+| API 파일 업로드 시 `InvalidAccessKeyId` | MinIO root ↔ AWS_* 환경변수 불일치 | 두 변수쌍이 정확히 같은 값인지 재확인 |
+| admin-web 에서 502 Bad Gateway | nginx 가 잘못된 api hostname 으로 프록시 | `apps/admin-web/nginx.conf` 의 `proxy_pass` 가 실제 api 공개 URL 과 일치하는지 확인 |
+
+### Day 2 운영
+
+- **코드 변경 → `git push origin main`** 으로 끝. Render 가 영향받는 서비스만 자동 재빌드. 시드 재실행 **불필요**.
+- **시드 재실행이 필요한 경우**: ① couchdb disk 를 삭제했을 때, ② `seed-master.ts` 에 새 마스터 레코드를 추가하고 prod 에 반영하려는 경우. 단 시드는 user 의 `passwordHash` 도 매번 덮어쓰므로 운영 사용자가 비번을 변경한 상태에서 재실행하면 시드 기본값으로 복원됩니다.
+- **로그 확인**: 각 서비스 → **Logs** 탭. 빌드 결과는 **Events** 탭. 자원 사용량은 **Metrics** 탭.
+- **위험 작업**: couchdb / minio 의 disk 삭제는 데이터 영구 손실. CouchDB · MinIO root 자격증명 회전은 disk 재생성 절차 필요.
 
 > **Free 플랜 주의:** 15분간 트래픽이 없으면 서비스가 자동 중지됩니다. 지속 운영이 필요하면 **Starter 플랜** 이상을 사용하세요.
 
@@ -1942,6 +1895,40 @@ node dist/src/database/seed-master
 ## 18. 버전 히스토리
 
 > 국토교통부 AX-SPRINT Agile 트랙 과제 기준 릴리스 이력
+
+### v0.3.2 — 외부 공개 미리보기 모드 (임시) `2026-04-24`
+
+> ⚠️ **임시 조치** — 외부인이 로그인 절차 없이 페이지를 둘러볼 수 있도록 자동 로그인을 활성화. 운영 전환 전 반드시 제거할 것.
+
+| 카테고리 | 변경 사항 |
+|----------|-----------|
+| **자동 로그인 (admin-web)** | `auth.guard.ts` 에서 미인증 사용자가 보호된 라우트에 접근하면 `/login` 리다이렉트 대신 시드 ORG_ADMIN(`admin@happy-housing.kr` / `Admin@1234`) 으로 자동 로그인 후 진입. `/login` 라우트 자체는 유지되어 다른 계정 수동 로그인은 그대로 가능 |
+| **신규 메서드** | `auth.service.ts` 에 `autoLogin()` 추가 — 위 시드 계정 호출 전용 |
+| **권한** | 자동 진입 사용자는 ORG_ADMIN 권한이라 데이터 수정·삭제도 가능. 진짜 read-only 가 필요하면 별도 VIEWER 계정 시드 + 백엔드 GET-only 가드 추가 필요 |
+
+**복구 방법** (운영 전환 시):
+```bash
+# TEMP 마커로 한번에 식별
+grep -rn "TEMP — 외부 공개" apps/admin-web/src
+```
+- `auth.guard.ts` 의 `// ⚠️ TEMP` 블록을 `router.navigate(['/login']); return false;` 로 교체
+- `auth.service.ts` 의 `autoLogin()` 메서드 삭제
+
+---
+
+### v0.3.1 — Render 배포 안정화 `2026-04-24`
+
+Render Blueprint 기반 첫 프로덕션 배포 시 발견된 호환성 이슈 일괄 수정 및 운영 가이드 정비
+
+| 카테고리 | 변경 사항 |
+|----------|-----------|
+| **Worker 빌드** | `ai-worker`/`job-worker` tsconfig 에 `rootDir: "./"` 명시 — 빌드 출력 경로(`dist/src/main`)가 Dockerfile `CMD` 와 일치하도록 고정 |
+| **MinIO 부팅** | `render.yaml` 의 `dockerCommand` 에 `minio` 프리픽스 추가 — image 런타임에서 `server` 단독 인자 시 발생하던 exit 128 회피 |
+| **Redis 연결** | `BullModule`/`RedisModule` 의 connectionString 파싱을 `split(':')` → `new URL()` 로 교체. Render Managed Redis 의 `redis://user:pass@host:port` 형태에서 host 자리에 user 가 들어가던 버그 수정. `REDIS_PASSWORD` 환경변수 의존 제거 |
+| **시드 실행** | `seed.ts` / `seed-master.ts` / `seed-extra.ts` / `seed-full.ts` 의 dotenv import 를 `try { require('dotenv') } catch` 가드로 변경. devDependency 인 dotenv 가 prod 컨테이너에 없어도 시드 정상 실행 |
+| **운영 가이드** | README §16 을 Blueprint 기반 배포 절차로 전면 개편, 트러블슈팅 표 + Day 2 운영 섹션 추가 |
+
+---
 
 ### v0.3.0 — Phase 2 통합 (integ) `2026-04-15`
 

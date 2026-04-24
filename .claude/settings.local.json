@@ -77,7 +77,9 @@
       "Bash(git -C C:/Users/on/workspace/integ-xAI-PublicHousing diff)",
       "Bash(git *)",
       "Bash(awk '/\"dependencies\"/,/^  \\\\}/' C:/Users/on/workspace/integ-xAI-PublicHousing/apps/api/package.json)",
-      "Bash(awk '/\"devDependencies\"/,/^  \\\\}/' C:/Users/on/workspace/integ-xAI-PublicHousing/apps/api/package.json)"
+      "Bash(awk '/\"devDependencies\"/,/^  \\\\}/' C:/Users/on/workspace/integ-xAI-PublicHousing/apps/api/package.json)",
+      "PowerShell(py *)",
+      "PowerShell(Test-Path *)"
     ]
   }
 }

@@ -22,6 +22,12 @@ export class AuthService {
     );
   }
 
+  // ⚠️ TEMP — 외부 공개 미리보기용 자동 로그인 (시드된 ORG_ADMIN 계정).
+  // 운영 전환 시 이 메서드와 auth.guard 의 호출부를 함께 제거할 것.
+  autoLogin() {
+    return this.login('admin@happy-housing.kr', 'Admin@1234');
+  }
+
   logout() {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
